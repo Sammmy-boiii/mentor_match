@@ -112,7 +112,7 @@ const Sidebar = () => {
         )}
 
         {/* Tutor Desktop Navigation */}
-        {tToken && (
+        {tToken && !aToken && (
           <nav className="flex-1 p-4">
             <NavLink
               to="/tutor-dashboard"
@@ -159,7 +159,7 @@ const Sidebar = () => {
         )}
 
         {/* Tutor Logout Button */}
-        {tToken && (
+        {tToken && !aToken && (
           <div className="p-4 mt-auto">
             <button
               onClick={logout}
@@ -186,7 +186,7 @@ const Sidebar = () => {
       </div>
 
       {/* Mobile Navbar */}
-      {tToken && (
+      {tToken && !aToken && (
         <div className="sm:hidden fixed top-0 left-0 right-0 bg-[#1e293b] text-white flex flex-col items-center z-50">
           {/* Logo */}
           <div className="p-3 border-b border-gray-700 w-full flex justify-center">

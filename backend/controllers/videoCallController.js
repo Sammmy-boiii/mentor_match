@@ -8,16 +8,24 @@ const activeRooms = new Map()
 const generateRoomId = async (req, res) => {
     try {
         const { sessionId } = req.body
-        const userId = req.userId || req.body.tutId
+        // Support both user and tutor - userId from authUser, tutId from authTutor
+        const participantId = req.userId || req.tutId
+
+        console.log('generateRoomId - sessionId:', sessionId, 'participantId:', participantId)
 
         const session = await sessionModel.findById(sessionId)
         
         if (!session) {
+            console.log('Session not found')
             return res.json({ success: false, message: "Session not found" })
         }
 
+        console.log('Session found - userId:', session.userId, 'tutId:', session.tutId)
+
         // Check if user is authorized (either the student or the tutor)
-        if (session.userId !== userId && session.tutId !== userId) {
+        // Convert to strings for comparison since MongoDB stores ObjectIds
+        if (session.userId.toString() !== participantId && session.tutId.toString() !== participantId) {
+            console.log('Unauthorized - session.userId:', session.userId.toString(), 'session.tutId:', session.tutId.toString(), 'participantId:', participantId)
             return res.json({ success: false, message: "Unauthorized access" })
         }
 
@@ -66,9 +74,9 @@ const joinRoom = async (req, res) => {
             return res.json({ success: false, message: "Room not found" })
         }
 
-        // Verify user is authorized to join
-        const isAuthorized = (userType === 'user' && session.userId === userId) ||
-                           (userType === 'tutor' && session.tutId === userId)
+        // Verify user is authorized to join (convert to strings for comparison)
+        const isAuthorized = (userType === 'user' && session.userId.toString() === userId) ||
+                           (userType === 'tutor' && session.tutId.toString() === userId)
 
         if (!isAuthorized) {
             return res.json({ success: false, message: "You are not authorized to join this room" })
@@ -117,6 +125,7 @@ const joinRoom = async (req, res) => {
             accessToken,
             roomId,
             sessionId: session._id,
+            participantId: userId,  // The actual user/tutor ID from JWT
             userData: userType === 'user' ? session.userData : session.tutData,
             peerData: userType === 'user' ? session.tutData : session.userData,
             callStatus: session.callStatus
@@ -131,7 +140,8 @@ const joinRoom = async (req, res) => {
 // ================= TUTOR JOIN ROOM =================
 const tutorJoinRoom = async (req, res) => {
     try {
-        const { roomId, tutId } = req.body
+        const { roomId } = req.body
+        const tutId = req.tutId  // Get from authTutor middleware
 
         const session = await sessionModel.findOne({ roomId })
         
@@ -139,8 +149,8 @@ const tutorJoinRoom = async (req, res) => {
             return res.json({ success: false, message: "Room not found" })
         }
 
-        // Verify tutor is authorized
-        if (session.tutId !== tutId) {
+        // Verify tutor is authorized (convert to string for comparison)
+        if (session.tutId.toString() !== tutId) {
             return res.json({ success: false, message: "You are not authorized to join this room" })
         }
 
@@ -186,6 +196,7 @@ const tutorJoinRoom = async (req, res) => {
             accessToken,
             roomId,
             sessionId: session._id,
+            participantId: tutId,  // The actual tutor ID from JWT
             userData: session.tutData,
             peerData: session.userData,
             callStatus: session.callStatus

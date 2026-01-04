@@ -2,6 +2,9 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { io } from 'socket.io-client';
 import { FaMicrophone, FaMicrophoneSlash, FaVideo, FaVideoSlash, FaPhoneSlash, FaDesktop, FaComments, FaTimes, FaExpand, FaCompress } from 'react-icons/fa';
 
+// Global map to track active initializations (prevents duplicate connections from StrictMode)
+const activeConnections = new Map();
+
 const VideoCall = ({ 
     roomId, 
     userId, 
@@ -20,6 +23,7 @@ const VideoCall = ({
     const socketRef = useRef(null);
     const localStreamRef = useRef(null);
     const reconnectTimeoutRef = useRef(null);
+    const initializingRef = useRef(false);  // Prevent double initialization
 
     // State
     const [isConnected, setIsConnected] = useState(false);
@@ -174,9 +178,43 @@ const VideoCall = ({
         }, 3000);
     }, [roomId, userId, accessToken]);
 
+    // Create offer for peer - defined as ref to avoid closure issues
+    const createOfferForPeerRef = useRef(null);
+
     // Initialize socket and WebRTC
     useEffect(() => {
+        // Define createOfferForPeer inside useEffect to access latest refs
+        const createOfferForPeer = async (targetSocketId) => {
+            try {
+                const pc = createPeerConnection(targetSocketId);
+                const offer = await pc.createOffer({
+                    offerToReceiveAudio: true,
+                    offerToReceiveVideo: true
+                });
+                await pc.setLocalDescription(offer);
+                
+                socketRef.current?.emit('offer', {
+                    offer,
+                    targetSocketId
+                });
+            } catch (err) {
+                console.error('Error creating offer:', err);
+            }
+        };
+
+        // Store in ref for external access
+        createOfferForPeerRef.current = createOfferForPeer;
+
         const init = async () => {
+            // Prevent double initialization from StrictMode using global map
+            const connectionKey = `${roomId}-${userId}`;
+            if (activeConnections.has(connectionKey)) {
+                console.log('Already initializing with key:', connectionKey, ', skipping duplicate...');
+                return;
+            }
+            activeConnections.set(connectionKey, true);
+            initializingRef.current = true;
+            
             try {
                 // Initialize media first
                 await initializeMedia();
@@ -216,26 +254,34 @@ const VideoCall = ({
                     onError?.(message);
                 });
 
-                // Handle existing users in room
+                // Handle existing users in room - DON'T create offer here
+                // Wait for existing users to send us an offer instead
                 socket.on('room-users', ({ users }) => {
-                    console.log('Existing users:', users);
+                    console.log('Existing users in room:', users);
                     if (users.length > 0) {
-                        // Create offer for existing user
-                        const targetUser = users[0];
-                        createOfferForPeer(targetUser.socketId);
+                        setPeerStatus('waiting-for-offer');
+                        // Don't create offer - existing users will send us offers
                     }
                 });
 
-                // Handle new user joining
+                // Handle new user joining - ONLY existing users create offers
                 socket.on('user-joined', async ({ socketId, userType: joinedUserType }) => {
-                    console.log('User joined:', socketId, joinedUserType);
-                    setPeerStatus('joined');
+                    console.log('New user joined, I will create offer for:', socketId, joinedUserType);
+                    setPeerStatus('creating-offer');
+                    // I was here first, so I create the offer
+                    createOfferForPeer(socketId);
                 });
 
                 // Handle incoming offer
                 socket.on('offer', async ({ offer, senderSocketId }) => {
                     console.log('Received offer from:', senderSocketId);
+                    setPeerStatus('answering');
                     try {
+                        // Close any existing peer connection before creating new one
+                        if (peerConnectionRef.current) {
+                            peerConnectionRef.current.close();
+                        }
+                        
                         const pc = createPeerConnection(senderSocketId);
                         await pc.setRemoteDescription(new RTCSessionDescription(offer));
                         const answer = await pc.createAnswer();
@@ -245,6 +291,7 @@ const VideoCall = ({
                             answer,
                             targetSocketId: senderSocketId
                         });
+                        console.log('Sent answer to:', senderSocketId);
                     } catch (err) {
                         console.error('Error handling offer:', err);
                     }
@@ -308,9 +355,14 @@ const VideoCall = ({
                     console.log('Peer video:', peerVideoOff ? 'off' : 'on');
                 });
 
-                // Handle chat messages
+                // Handle chat messages from others
                 socket.on('chat-message', (msg) => {
                     setMessages(prev => [...prev, msg]);
+                });
+
+                // Handle own message sent confirmation
+                socket.on('chat-message-sent', (msg) => {
+                    setMessages(prev => [...prev, { ...msg, isSelf: true }]);
                 });
 
                 // Handle reconnection success
@@ -336,43 +388,32 @@ const VideoCall = ({
 
         // Cleanup
         return () => {
+            console.log('Cleanup running...');
+            const connectionKey = `${roomId}-${userId}`;
+            activeConnections.delete(connectionKey);
+            initializingRef.current = false;
+            
             if (reconnectTimeoutRef.current) {
                 clearTimeout(reconnectTimeoutRef.current);
             }
             
             if (localStreamRef.current) {
                 localStreamRef.current.getTracks().forEach(track => track.stop());
+                localStreamRef.current = null;
             }
             
             if (peerConnectionRef.current) {
                 peerConnectionRef.current.close();
+                peerConnectionRef.current = null;
             }
             
             if (socketRef.current) {
                 socketRef.current.emit('leave-room', { roomId });
                 socketRef.current.disconnect();
+                socketRef.current = null;
             }
         };
     }, [roomId, userId, userType, accessToken, backendUrl, initializeMedia, createPeerConnection, onError]);
-
-    // Create offer for peer
-    const createOfferForPeer = async (targetSocketId) => {
-        try {
-            const pc = createPeerConnection(targetSocketId);
-            const offer = await pc.createOffer({
-                offerToReceiveAudio: true,
-                offerToReceiveVideo: true
-            });
-            await pc.setLocalDescription(offer);
-            
-            socketRef.current?.emit('offer', {
-                offer,
-                targetSocketId
-            });
-        } catch (err) {
-            console.error('Error creating offer:', err);
-        }
-    };
 
     // Toggle mute
     const toggleMute = () => {

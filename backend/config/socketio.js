@@ -15,23 +15,39 @@ const setupSocketIO = (server) => {
     const roomSockets = new Map()
 
     io.on('connection', (socket) => {
-        console.log('User connected:', socket.id)
+        console.log('=== Socket connected ===', socket.id)
 
         // ================= JOIN VIDEO ROOM =================
         socket.on('join-room', async ({ roomId, userId, userType, accessToken }) => {
+            console.log('=== JOIN ROOM REQUEST ===')
+            console.log('roomId:', roomId)
+            console.log('userId:', userId)
+            console.log('userType:', userType)
+            console.log('accessToken:', accessToken ? accessToken.substring(0, 10) + '...' : 'none')
+            console.log('activeRooms keys:', Array.from(activeRooms.keys()))
+            
             try {
                 // Validate access
                 const room = activeRooms.get(roomId)
                 if (!room) {
+                    console.log('ERROR: Room not found in activeRooms')
                     socket.emit('error', { message: 'Room not found or expired' })
                     return
                 }
 
+                console.log('Room found, participants:', Array.from(room.participants.keys()))
+                
                 const participant = room.participants.get(userId)
                 if (!participant || participant.token !== accessToken) {
+                    console.log('ERROR: Invalid credentials')
+                    console.log('participant:', participant)
+                    console.log('expected token:', participant?.token?.substring(0, 10))
+                    console.log('received token:', accessToken?.substring(0, 10))
                     socket.emit('error', { message: 'Invalid access credentials' })
                     return
                 }
+                
+                console.log('Credentials valid, joining room...')
 
                 // Join socket room
                 socket.join(roomId)
@@ -66,9 +82,11 @@ const setupSocketIO = (server) => {
                     userType,
                     socketId: socket.id
                 })
+                console.log('Notified existing users about new participant')
 
                 // Send list of existing participants to new user
                 socket.emit('room-users', { users: existingUsers })
+                console.log('Sent existing users to new participant:', existingUsers)
 
                 // Check if both participants are present
                 const participantCount = room.participants.size
@@ -98,6 +116,7 @@ const setupSocketIO = (server) => {
         
         // Send offer to specific peer
         socket.on('offer', ({ offer, targetSocketId }) => {
+            console.log(`=== OFFER: ${socket.id} -> ${targetSocketId} ===`)
             io.to(targetSocketId).emit('offer', {
                 offer,
                 senderSocketId: socket.id,
@@ -107,6 +126,7 @@ const setupSocketIO = (server) => {
 
         // Send answer to specific peer
         socket.on('answer', ({ answer, targetSocketId }) => {
+            console.log(`=== ANSWER: ${socket.id} -> ${targetSocketId} ===`)
             io.to(targetSocketId).emit('answer', {
                 answer,
                 senderSocketId: socket.id
@@ -115,6 +135,7 @@ const setupSocketIO = (server) => {
 
         // Send ICE candidate to specific peer
         socket.on('ice-candidate', ({ candidate, targetSocketId }) => {
+            console.log(`ICE: ${socket.id} -> ${targetSocketId}`)
             io.to(targetSocketId).emit('ice-candidate', {
                 candidate,
                 senderSocketId: socket.id
@@ -149,12 +170,16 @@ const setupSocketIO = (server) => {
 
         // Chat message
         socket.on('chat-message', ({ roomId, message }) => {
-            io.to(roomId).emit('chat-message', {
+            const msgData = {
                 senderId: socket.odId,
                 senderType: socket.userType,
                 message,
                 timestamp: Date.now()
-            })
+            }
+            // Send to others in room (not back to sender)
+            socket.to(roomId).emit('chat-message', msgData)
+            // Send confirmation back to sender with the same data
+            socket.emit('chat-message-sent', msgData)
         })
 
         // ================= END CALL =================

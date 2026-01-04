@@ -18,6 +18,9 @@ const TutorVideoRoom = () => {
     const [roomData, setRoomData] = useState(null);
     const [showPreCall, setShowPreCall] = useState(true);
     const [mediaPermissions, setMediaPermissions] = useState({ audio: false, video: false });
+    
+    // Ref to prevent double initialization from StrictMode
+    const initializingRef = React.useRef(false);
 
     // Check media permissions
     const checkMediaPermissions = async () => {
@@ -42,6 +45,13 @@ const TutorVideoRoom = () => {
     // Initialize room
     useEffect(() => {
         const initRoom = async () => {
+            // Prevent double initialization from StrictMode
+            if (initializingRef.current) {
+                console.log('Already initializing room, skipping...');
+                return;
+            }
+            initializingRef.current = true;
+            
             if (!tToken) {
                 navigate('/login');
                 return;
@@ -83,19 +93,13 @@ const TutorVideoRoom = () => {
                     return;
                 }
 
-                // Get tutor profile to get tutId
-                const { data: profileResponse } = await axios.get(
-                    `${backendUrl}/api/tutor/profile`,
-                    { headers: { tToken } }
-                );
-
                 setRoomData({
                     roomId: roomResponse.roomId,
                     sessionId: roomResponse.sessionId,
                     accessToken: joinResponse.accessToken,
                     userData: joinResponse.userData,
                     peerData: joinResponse.peerData,
-                    tutId: profileResponse.profileData?._id
+                    tutId: joinResponse.participantId  // Use the actual tutor ID from backend
                 });
 
                 setLoading(false);

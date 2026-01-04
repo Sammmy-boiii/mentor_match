@@ -19,6 +19,9 @@ const VideoRoom = () => {
 
     // Get room ID from URL or generate new one
     const roomIdFromUrl = searchParams.get('roomId');
+    
+    // Ref to prevent double initialization from StrictMode
+    const initializingRef = React.useRef(false);
 
     // Check media permissions
     const checkMediaPermissions = async () => {
@@ -43,6 +46,13 @@ const VideoRoom = () => {
     // Generate or fetch room
     useEffect(() => {
         const initRoom = async () => {
+            // Prevent double initialization from StrictMode
+            if (initializingRef.current) {
+                console.log('Already initializing room, skipping...');
+                return;
+            }
+            initializingRef.current = true;
+            
             if (!token) {
                 navigate('/login');
                 return;
@@ -90,7 +100,7 @@ const VideoRoom = () => {
                     accessToken: joinResponse.accessToken,
                     userData: joinResponse.userData,
                     peerData: joinResponse.peerData,
-                    userId: joinResponse.userData?._id || userData?._id
+                    userId: joinResponse.participantId  // Use the actual user ID from backend
                 });
 
                 setLoading(false);

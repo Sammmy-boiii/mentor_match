@@ -7,13 +7,13 @@ import AllSessions from "./pages/admin/AllSessions"
 import AddTutor from "./pages/admin/AddTutor"
 import TutorsList from "./pages/admin/TutorsList"
 import { AdminContext } from "./context/AdminContext"
-import Login from "./pages/admin/Login"
 import { TutorContext } from "./context/TutorContext"
 import TutorDashboard from "./pages/tutor/TutorDashboard"
 import TutorSessions from "./pages/tutor/TutorSessions"
 import TutorProfile from "./pages/tutor/TutorProfile"
 import TutorVideoRoom from "./pages/tutor/TutorVideoRoom"
 
+const frontendUrl = import.meta.env.VITE_FRONTEND_URL || "http://localhost:5173"
 
 export default function App() {
   const { aToken, setAToken } = useContext(AdminContext)
@@ -43,7 +43,26 @@ export default function App() {
     }
   }, [location.search, location.pathname, setAToken, setTToken, navigate])
 
-  return aToken || tToken ? (
+  // If no token, redirect to frontend login
+  useEffect(() => {
+    if (!aToken && !tToken && !location.search.includes('Token')) {
+      window.location.href = `${frontendUrl}/login`
+    }
+  }, [aToken, tToken, location.search])
+
+  // Show nothing while redirecting
+  if (!aToken && !tToken) {
+    return (
+      <main>
+        <ToastContainer position="bottom-right" />
+        <div className="flex items-center justify-center h-screen">
+          <p>Redirecting to login...</p>
+        </div>
+      </main>
+    )
+  }
+
+  return (
     <main>
       <ToastContainer position="bottom-right" />
       <div className={isVideoRoom ? "" : "bg-light text-tertiary"}>
@@ -63,14 +82,8 @@ export default function App() {
             <Route path="/tutor-profile" element={<TutorProfile />} />
             <Route path="/tutor-video-room/:sessionId" element={<TutorVideoRoom />} />
           </Routes>
-
         </div>
       </div>
-    </main>
-  ) : (
-    <main>
-      <ToastContainer position="bottom-right" />
-      <Login setAToken={setAToken} />
     </main>
   )
 }
