@@ -5,9 +5,9 @@ import { FaSquarePlus, FaUser } from "react-icons/fa6";
 import { FaClipboardList, FaListAlt } from "react-icons/fa";
 import { MdFactCheck } from "react-icons/md";
 import { BiLogOut } from "react-icons/bi";
-import MentorLogo from "../assets/MentorLogo.png";
+import MentorLogos from "../assets/MentorLogos.png";
 import { AppContext } from "../context/AppContext";
-import { TutorContext } from "../context/TutorContext"; 
+import { TutorContext } from "../context/TutorContext";
 
 const Sidebar = () => {
   const { aToken, setAToken } = useContext(AdminContext);
@@ -39,7 +39,7 @@ const Sidebar = () => {
         <div className="p-6 text-center border-b border-gray-700">
           <Link to="/" className="flex flex-col items-center no-underline">
             <img
-              src={MentorLogo}
+              src={MentorLogos}
               alt="Mentor Match Logo"
               className="h-12 w-auto object-contain mb-2"
             />
@@ -56,10 +56,9 @@ const Sidebar = () => {
             <NavLink
               to="/admin-dashboard"
               className={({ isActive }) =>
-                `flex items-center gap-3 px-4 py-3 mb-2 rounded-lg transition-all ${
-                  isActive
-                    ? "bg-[#4f47e6] shadow-md"
-                    : "hover:bg-[#4f47e6]"
+                `flex items-center gap-3 px-4 py-3 mb-2 rounded-lg transition-all ${isActive
+                  ? "bg-[#4f47e6] shadow-md"
+                  : "hover:bg-[#4f47e6]"
                 }`
               }
             >
@@ -70,10 +69,9 @@ const Sidebar = () => {
             <NavLink
               to="/all-sessions"
               className={({ isActive }) =>
-                `flex items-center gap-3 px-4 py-3 mb-2 rounded-lg transition-all ${
-                  isActive
-                    ? "bg-[#4f47e6] shadow-md"
-                    : "hover:bg-[#4f47e6]"
+                `flex items-center gap-3 px-4 py-3 mb-2 rounded-lg transition-all ${isActive
+                  ? "bg-[#4f47e6] shadow-md"
+                  : "hover:bg-[#4f47e6]"
                 }`
               }
             >
@@ -84,10 +82,9 @@ const Sidebar = () => {
             <NavLink
               to="/tutors-list"
               className={({ isActive }) =>
-                `flex items-center gap-3 px-4 py-3 mb-2 rounded-lg transition-all ${
-                  isActive
-                    ? "bg-[#4f47e6] shadow-md"
-                    : "hover:bg-[#4f47e6]"
+                `flex items-center gap-3 px-4 py-3 mb-2 rounded-lg transition-all ${isActive
+                  ? "bg-[#4f47e6] shadow-md"
+                  : "hover:bg-[#4f47e6]"
                 }`
               }
             >
@@ -98,10 +95,9 @@ const Sidebar = () => {
             <NavLink
               to="/add-tutor"
               className={({ isActive }) =>
-                `flex items-center gap-3 px-4 py-3 mb-2 rounded-lg transition-all ${
-                  isActive
-                    ? "bg-[#4f47e6] shadow-md"
-                    : "hover:bg-[#4f47e6]"
+                `flex items-center gap-3 px-4 py-3 mb-2 rounded-lg transition-all ${isActive
+                  ? "bg-[#4f47e6] shadow-md"
+                  : "hover:bg-[#4f47e6]"
                 }`
               }
             >
@@ -117,10 +113,9 @@ const Sidebar = () => {
             <NavLink
               to="/tutor-dashboard"
               className={({ isActive }) =>
-                `flex items-center gap-3 px-4 py-3 mb-2 rounded-lg transition-all ${
-                  isActive
-                    ? "bg-[#4f47e6] shadow-md"
-                    : "hover:bg-[#4f47e6]"
+                `flex items-center gap-3 px-4 py-3 mb-2 rounded-lg transition-all ${isActive
+                  ? "bg-[#4f47e6] shadow-md"
+                  : "hover:bg-[#4f47e6]"
                 }`
               }
             >
@@ -131,10 +126,9 @@ const Sidebar = () => {
             <NavLink
               to="/tutor-sessions"
               className={({ isActive }) =>
-                `flex items-center gap-3 px-4 py-3 mb-2 rounded-lg transition-all ${
-                  isActive
-                    ? "bg-[#4f47e6] shadow-md"
-                    : "hover:bg-[#4f47e6]"
+                `flex items-center gap-3 px-4 py-3 mb-2 rounded-lg transition-all ${isActive
+                  ? "bg-[#4f47e6] shadow-md"
+                  : "hover:bg-[#4f47e6]"
                 }`
               }
             >
@@ -145,10 +139,9 @@ const Sidebar = () => {
             <NavLink
               to="/tutor-profile"
               className={({ isActive }) =>
-                `flex items-center gap-3 px-4 py-3 mb-2 rounded-lg transition-all ${
-                  isActive
-                    ? "bg-[#4f47e6] shadow-md"
-                    : "hover:bg-[#4f47e6]"
+                `flex items-center gap-3 px-4 py-3 mb-2 rounded-lg transition-all ${isActive
+                  ? "bg-[#4f47e6] shadow-md"
+                  : "hover:bg-[#4f47e6]"
                 }`
               }
             >
@@ -191,7 +184,7 @@ const Sidebar = () => {
           {/* Logo */}
           <div className="p-3 border-b border-gray-700 w-full flex justify-center">
             <img
-              src={MentorLogo}
+              src={MentorLogos}
               alt="Mentor Match Logo"
               className="h-10 w-auto object-contain"
             />
@@ -202,8 +195,7 @@ const Sidebar = () => {
             <NavLink
               to="/tutor-dashboard"
               className={({ isActive }) =>
-                `flex flex-col items-center text-xs ${
-                  isActive ? "text-[#4f47e6]" : "hover:text-[#4f47e6]"
+                `flex flex-col items-center text-xs ${isActive ? "text-[#4f47e6]" : "hover:text-[#4f47e6]"
                 }`
               }
             >
@@ -213,8 +205,7 @@ const Sidebar = () => {
             <NavLink
               to="/tutor-sessions"
               className={({ isActive }) =>
-                `flex flex-col items-center text-xs ${
-                  isActive ? "text-[#4f47e6]" : "hover:text-[#4f47e6]"
+                `flex flex-col items-center text-xs ${isActive ? "text-[#4f47e6]" : "hover:text-[#4f47e6]"
                 }`
               }
             >
@@ -224,15 +215,14 @@ const Sidebar = () => {
             <NavLink
               to="/tutor-profile"
               className={({ isActive }) =>
-                `flex flex-col items-center text-xs ${
-                  isActive ? "text-[#4f47e6]" : "hover:text-[#4f47e6]"
+                `flex flex-col items-center text-xs ${isActive ? "text-[#4f47e6]" : "hover:text-[#4f47e6]"
                 }`
               }
             >
               <FaUser className="text-xl" />
             </NavLink>
 
-          
+
             <button
               onClick={logout}
               className="flex flex-col items-center text-xs text-red-500 hover:text-red-400"
@@ -247,7 +237,7 @@ const Sidebar = () => {
           {/* Logo */}
           <div className="p-3 border-b border-gray-700 w-full flex justify-center">
             <img
-              src={MentorLogo}
+              src={MentorLogos}
               alt="Mentor Match Logo"
               className="h-10 w-auto object-contain"
             />
@@ -258,8 +248,7 @@ const Sidebar = () => {
             <NavLink
               to="/admin-dashboard"
               className={({ isActive }) =>
-                `flex flex-col items-center text-xs ${
-                  isActive ? "text-[#4f47e6]" : "hover:text-[#4f47e6]"
+                `flex flex-col items-center text-xs ${isActive ? "text-[#4f47e6]" : "hover:text-[#4f47e6]"
                 }`
               }
             >
@@ -269,8 +258,7 @@ const Sidebar = () => {
             <NavLink
               to="/all-sessions"
               className={({ isActive }) =>
-                `flex flex-col items-center text-xs ${
-                  isActive ? "text-[#4f47e6]" : "hover:text-[#4f47e6]"
+                `flex flex-col items-center text-xs ${isActive ? "text-[#4f47e6]" : "hover:text-[#4f47e6]"
                 }`
               }
             >
@@ -280,8 +268,7 @@ const Sidebar = () => {
             <NavLink
               to="/tutors-list"
               className={({ isActive }) =>
-                `flex flex-col items-center text-xs ${
-                  isActive ? "text-[#4f47e6]" : "hover:text-[#4f47e6]"
+                `flex flex-col items-center text-xs ${isActive ? "text-[#4f47e6]" : "hover:text-[#4f47e6]"
                 }`
               }
             >
@@ -291,8 +278,7 @@ const Sidebar = () => {
             <NavLink
               to="/add-tutor"
               className={({ isActive }) =>
-                `flex flex-col items-center text-xs ${
-                  isActive ? "text-[#4f47e6]" : "hover:text-[#4f47e6]"
+                `flex flex-col items-center text-xs ${isActive ? "text-[#4f47e6]" : "hover:text-[#4f47e6]"
                 }`
               }
             >

@@ -3,7 +3,7 @@ import sessionModel from "../models/sessionModel.js"
 import tutorLoginModel from "../models/tutorLoginModel.js"
 import bcrypt from "bcrypt"
 import jwt from "jsonwebtoken"
-import {v2 as cloudinary} from "cloudinary"
+import { v2 as cloudinary } from "cloudinary"
 
 // Tutor Application API - Submit application form with image and document
 const applyTutor = async (req, res) => {

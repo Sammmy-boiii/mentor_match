@@ -4,7 +4,7 @@ import Navbar from "./Navbar";
 import { CgMenuLeft } from "react-icons/cg";
 import { RiUserLine } from "react-icons/ri";
 import { TbArrowNarrowRight } from "react-icons/tb";
-import MentorLogo from "../assets/MentorLogo.png";
+import MentorLogos from "../assets/MentorLogos.png";
 import { AppContext } from "../context/AppContext";
 import userImage from "../assets/user.jpg"; // Placeholder user image
 import upload_icon from "../assets/upload_icon.png";
@@ -34,16 +34,16 @@ const Header = () => {
   };
 
   return (
-    <header className="max-padd-container w-full fixed top-0 left-0 z-50 bg-gray-800 text-white shadow-md py-4">
-      <div className="flex items-center justify-between">
+    <header className="w-full fixed top-0 left-0 z-50 bg-gray-800 text-white shadow-md">
+      <div className="max-padd-container flex items-center justify-between py-3">
         {/* Logo (Left) */}
-        <Link to="/" className="flex items-center gap-2">
+        <Link to="/" className="flex items-center gap-3">
           <img
-            src={MentorLogo}
+            src={MentorLogos}
             alt="Mentor Match Logo"
-            className="h-16 w-auto object-contain"
+            className="h-12 w-auto object-contain"
           />
-          <span className="font-bold text-2xl tracking-wide text-white">
+          <span className="font-bold text-xl tracking-wide text-white">
             Mentor Match
           </span>
         </Link>
@@ -55,16 +55,16 @@ const Header = () => {
             toggleMenu={toggleMenu}
             containerStyles={
               menuOpened
-                ? "flex flex-col gap-y-12 h-screen w-[222px] absolute left-0 top-0 bg-gray-900 z-50 px-10 py-4 shadow-2xl"
-                : "hidden xl:flex gap-x-8 text-gray-300 hover:text-white transition"
+                ? "flex flex-col gap-y-8 h-screen w-64 fixed left-0 top-0 bg-gray-900 z-50 px-6 py-6 shadow-2xl"
+                : "hidden lg:flex gap-x-8 text-gray-300 hover:text-white transition"
             }
           />
         </div>
 
         {/* Right side */}
-        <div className="flex items-center justify-end gap-x-3 sm:gap-x-10 relative">
+        <div className="flex items-center justify-end gap-x-3 sm:gap-x-8 relative">
           {/* Mobile menu icon */}
-          <div className="md:hidden">
+          <div className="lg:hidden">
             {!menuOpened && (
               <CgMenuLeft
                 onClick={toggleMenu}
@@ -74,10 +74,10 @@ const Header = () => {
           </div>
 
           {/* Login / User */}
-          {token && userData ? (
+          {token ? (
             <div className="relative" ref={dropdownRef}>
               <img
-                src={userData.image || upload_icon}
+                src={userData?.image || upload_icon}
                 alt="User"
                 className="h-10 w-10 rounded-full cursor-pointer border-2 border-white hover:border-teal-400 transition"
                 onClick={() => setDropdownOpen((prev) => !prev)}

@@ -18,16 +18,16 @@ const Contact = () => {
           </div>
 
           <form className="space-y-4">
-            <div className="flex gap-4">
+            <div className="flex flex-col sm:flex-row gap-4">
               <input
                 type="text"
                 placeholder="Enter Your Name"
-                className="w-1/2 border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full sm:w-1/2 border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-primary"
               />
               <input
                 type="email"
                 placeholder="Enter Your Email"
-                className="w-1/2 border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full sm:w-1/2 border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
 

@@ -14,7 +14,7 @@ const generateRoomId = async (req, res) => {
         console.log('generateRoomId - sessionId:', sessionId, 'participantId:', participantId)
 
         const session = await sessionModel.findById(sessionId)
-        
+
         if (!session) {
             console.log('Session not found')
             return res.json({ success: false, message: "Session not found" })
@@ -43,14 +43,28 @@ const generateRoomId = async (req, res) => {
             return res.json({ success: false, message: "Session has already been completed" })
         }
 
-        // Generate room ID if not exists
+        // Generate room ID if not exists - using findOneAndUpdate for atomicity
         if (!session.roomId) {
-            session.generateRoomId()
-            await session.save()
+            const newRoomId = `room_${session._id}_${crypto.randomBytes(8).toString('hex')}`;
+            const updatedSession = await sessionModel.findOneAndUpdate(
+                { _id: sessionId, $or: [{ roomId: { $exists: false } }, { roomId: "" }, { roomId: null }] },
+                { $set: { roomId: newRoomId, roomCreatedAt: new Date() } },
+                { new: true }
+            );
+
+            // If another process updated it first, use the one from DB
+            if (updatedSession) {
+                session.roomId = updatedSession.roomId;
+                console.log('Generated new roomId:', session.roomId);
+            } else {
+                const refreshedSession = await sessionModel.findById(sessionId);
+                session.roomId = refreshedSession.roomId;
+                console.log('Using existing roomId (from race winner):', session.roomId);
+            }
         }
 
-        res.json({ 
-            success: true, 
+        res.json({
+            success: true,
             roomId: session.roomId,
             sessionId: session._id
         })
@@ -69,14 +83,14 @@ const joinRoom = async (req, res) => {
         const userType = req.userType || 'user' // 'user' or 'tutor'
 
         const session = await sessionModel.findOne({ roomId })
-        
+
         if (!session) {
             return res.json({ success: false, message: "Room not found" })
         }
 
         // Verify user is authorized to join (convert to strings for comparison)
         const isAuthorized = (userType === 'user' && session.userId.toString() === userId) ||
-                           (userType === 'tutor' && session.tutId.toString() === userId)
+            (userType === 'tutor' && session.tutId.toString() === userId)
 
         if (!isAuthorized) {
             return res.json({ success: false, message: "You are not authorized to join this room" })
@@ -104,7 +118,7 @@ const joinRoom = async (req, res) => {
 
         // Generate a secure token for this user
         const accessToken = crypto.randomBytes(32).toString('hex')
-        
+
         // Store in active rooms (with expiry)
         if (!activeRooms.has(roomId)) {
             activeRooms.set(roomId, {
@@ -120,8 +134,8 @@ const joinRoom = async (req, res) => {
             joinedAt: Date.now()
         })
 
-        res.json({ 
-            success: true, 
+        res.json({
+            success: true,
             accessToken,
             roomId,
             sessionId: session._id,
@@ -144,7 +158,7 @@ const tutorJoinRoom = async (req, res) => {
         const tutId = req.tutId  // Get from authTutor middleware
 
         const session = await sessionModel.findOne({ roomId })
-        
+
         if (!session) {
             return res.json({ success: false, message: "Room not found" })
         }
@@ -175,7 +189,7 @@ const tutorJoinRoom = async (req, res) => {
 
         // Generate access token
         const accessToken = crypto.randomBytes(32).toString('hex')
-        
+
         // Store in active rooms
         if (!activeRooms.has(roomId)) {
             activeRooms.set(roomId, {
@@ -191,8 +205,8 @@ const tutorJoinRoom = async (req, res) => {
             joinedAt: Date.now()
         })
 
-        res.json({ 
-            success: true, 
+        res.json({
+            success: true,
             accessToken,
             roomId,
             sessionId: session._id,
@@ -214,7 +228,7 @@ const startCall = async (req, res) => {
         const { roomId } = req.body
 
         const session = await sessionModel.findOne({ roomId })
-        
+
         if (!session) {
             return res.json({ success: false, message: "Room not found" })
         }
@@ -223,8 +237,8 @@ const startCall = async (req, res) => {
         session.callStartedAt = new Date()
         await session.save()
 
-        res.json({ 
-            success: true, 
+        res.json({
+            success: true,
             message: "Call started",
             callStartedAt: session.callStartedAt
         })
@@ -240,10 +254,10 @@ const endCall = async (req, res) => {
     try {
         const { roomId, sessionId } = req.body
 
-        const session = await sessionModel.findOne({ 
-            $or: [{ roomId }, { _id: sessionId }] 
+        const session = await sessionModel.findOne({
+            $or: [{ roomId }, { _id: sessionId }]
         })
-        
+
         if (!session) {
             return res.json({ success: false, message: "Session not found" })
         }
@@ -265,8 +279,8 @@ const endCall = async (req, res) => {
             activeRooms.delete(session.roomId)
         }
 
-        res.json({ 
-            success: true, 
+        res.json({
+            success: true,
             message: "Call ended successfully",
             callDuration: duration
         })
@@ -283,7 +297,7 @@ const getRoomStatus = async (req, res) => {
         const { roomId } = req.params
 
         const session = await sessionModel.findOne({ roomId })
-        
+
         if (!session) {
             return res.json({ success: false, message: "Room not found" })
         }
@@ -291,8 +305,8 @@ const getRoomStatus = async (req, res) => {
         const room = activeRooms.get(roomId)
         const participantCount = room ? room.participants.size : 0
 
-        res.json({ 
-            success: true, 
+        res.json({
+            success: true,
             roomId,
             callStatus: session.callStatus,
             participantCount,
@@ -315,7 +329,7 @@ const leaveRoom = async (req, res) => {
         const room = activeRooms.get(roomId)
         if (room && room.participants.has(userId)) {
             room.participants.delete(userId)
-            
+
             // If no participants left, clean up room
             if (room.participants.size === 0) {
                 activeRooms.delete(roomId)
@@ -337,7 +351,7 @@ const validateRoomAccess = async (req, res) => {
         const userId = req.userId || req.body.tutId
 
         const session = await sessionModel.findOne({ roomId })
-        
+
         if (!session) {
             return res.json({ success: false, message: "Room not found" })
         }
@@ -363,8 +377,8 @@ const validateRoomAccess = async (req, res) => {
             return res.json({ success: false, message: "Invalid access token" })
         }
 
-        res.json({ 
-            success: true, 
+        res.json({
+            success: true,
             message: "Access validated",
             userType: participant.userType
         })

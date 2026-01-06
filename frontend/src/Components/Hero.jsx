@@ -5,7 +5,7 @@ import bg from '../assets/bg.png'; // import your image
 const Hero = () => {
   return (
     <section
-      className="max-padd-container h-[711px] w-full relative bg-center bg-no-repeat bg-cover"
+      className="max-padd-container min-h-[600px] md:h-[711px] w-full relative bg-center bg-no-repeat bg-cover flex items-center"
       style={{ backgroundImage: `url(${bg})` }} // use imported image
     >
       <div className="pt-44 xl:pt-52 max-w-[677px] text-white">

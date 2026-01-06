@@ -6,7 +6,7 @@ import { toast } from "react-toastify";
 import { FaVideo } from "react-icons/fa";
 
 const MySessions = () => {
-  const { currency, token, backendUrl, getTutorsData } = useContext(AppContext);
+  const { currency, token, backendUrl, getTutorsData, slotDateFormat } = useContext(AppContext);
   const [sessions, setSessions] = useState([]);
   const esewaFormRef = useRef(null);
   const [esewaData, setEsewaData] = useState(null);
@@ -105,7 +105,7 @@ const MySessions = () => {
         sessions.map((session, i) => (
           <div
             key={i}
-            className="bg-white shadow-md px-6 py-4 mb-4 rounded-lg flex gap-6 hover:shadow-lg transition items-center"
+            className="bg-white shadow-md px-6 py-4 mb-4 rounded-lg flex flex-col sm:flex-row gap-6 hover:shadow-lg transition items-center sm:items-start"
           >
             {/* session Image */}
             <div className="relative h-28 w-28 overflow-hidden rounded-lg flex-shrink-0">
@@ -148,13 +148,13 @@ const MySessions = () => {
 
                 <div className="flex items-center gap-x-2">
                   <h4 className="font-semibold text-gray-900">Date & Time:</h4>
-                  <p className="text-gray-900">{session.slotDate} | {session.slotTime}</p>
+                  <p className="text-gray-900">{slotDateFormat(session.slotDate)} | {session.slotTime}</p>
                 </div>
               </div>
             </div>
 
             {/* Button - right center */}
-            <div className="flex flex-col items-center gap-2">
+            <div className="flex flex-col w-full sm:w-auto items-center sm:items-end gap-2 mt-4 sm:mt-0">
               {session.cancelled ? (
                 <span className="px-3 py-1 text-sm text-red-600 bg-red-100 rounded-full">
                   Cancelled

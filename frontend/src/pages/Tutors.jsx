@@ -69,9 +69,8 @@ const Tutors = () => {
       {/* Filters button (mobile only) */}
       <button
         onClick={() => setShowFilters((prev) => !prev)}
-        className={`btn-secondary !py-1.5 mb-5 !rounded sm:hidden transition-all ${
-          showFilters ? "bg-secondary text-white" : ""
-        }`}
+        className={`btn-secondary !py-1.5 mb-5 !rounded sm:hidden transition-all ${showFilters ? "bg-secondary text-white" : ""
+          }`}
       >
         Filters
       </button>
@@ -89,12 +88,11 @@ const Tutors = () => {
                 `/tutors/${subject.name.toLowerCase().replace(/\s+/g, "-")}`
               )
             }
-            className={`px-6 py-2 whitespace-nowrap rounded-lg bg-deep text-white font-medium border-2 border-transparent transition ${
-              subject.name.toLowerCase().replace(/\s+/g, "-") ===
-              subjectParam?.toLowerCase()
+            className={`px-6 py-2 whitespace-nowrap rounded-lg bg-deep text-white font-medium border-2 border-transparent transition ${subject.name.toLowerCase().replace(/\s+/g, "-") ===
+                subjectParam?.toLowerCase()
                 ? "border-b-2 border-b-secondary !text-secondary"
                 : ""
-            }`}
+              }`}
           >
             {subject.name}
           </button>

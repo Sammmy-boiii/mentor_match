@@ -10,7 +10,7 @@ const VideoRoom = () => {
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
     const { token, backendUrl, userData, loadUserProfileData } = useContext(AppContext);
-    
+
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [roomData, setRoomData] = useState(null);
@@ -19,7 +19,7 @@ const VideoRoom = () => {
 
     // Get room ID from URL or generate new one
     const roomIdFromUrl = searchParams.get('roomId');
-    
+
     // Ref to prevent double initialization from StrictMode
     const initializingRef = React.useRef(false);
 
@@ -52,7 +52,7 @@ const VideoRoom = () => {
                 return;
             }
             initializingRef.current = true;
-            
+
             if (!token) {
                 navigate('/login');
                 return;
@@ -60,7 +60,7 @@ const VideoRoom = () => {
 
             try {
                 setLoading(true);
-                
+
                 // Check media permissions first
                 const hasPermissions = await checkMediaPermissions();
                 if (!hasPermissions) {
@@ -174,7 +174,7 @@ const VideoRoom = () => {
                     <h2 className="text-white text-2xl font-bold text-center mb-6">
                         Ready to Join?
                     </h2>
-                    
+
                     <div className="bg-gray-700 rounded-xl p-6 mb-6">
                         <div className="flex items-center gap-4 mb-4">
                             <img

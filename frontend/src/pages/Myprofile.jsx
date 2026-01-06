@@ -1,22 +1,39 @@
-import React, { useContext, useState } from "react";
+import React, { useContext, useState, useEffect } from "react";
 import profileImage from "../assets/user.jpg";
 import upload_icon from "../assets/upload_icon.png";
 import { AppContext } from "../context/AppContext";
+import axios from "axios";
+import { toast } from "react-toastify";
 
 const Myprofile = () => {
   const [selectedImage, setSelectedImage] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const {userData, setUserData,token,backendUrl,loadUserProfileData} = useContext(AppContext)
   
+  useEffect(() => {
+    if (token && !userData) {
+      loadUserProfileData()
+    }
+  }, [token])
+
+  useEffect(() => {
+    if (userData && !userData.address) {
+      setUserData(prev => ({
+        ...prev,
+        address: { city: prev.location?.city || "N/A", country: prev.location?.country || "N/A" }
+      }))
+    }
+  }, [userData])
+  
 const handleProfileUpdate=async()=>{
   try{
     const formData=new FormData()
     formData.append("name",userData.name)
     formData.append("email",userData.email)
-    formData.append("phone",userData.phone)
-        formData.append("address",JSON.stringify(userData.address ||{}))
-   formData.append("gender",userData.gender)
-    formData.append("DOB",userData.DOB)
+    formData.append("phone",userData.phone || "")
+    formData.append("location",JSON.stringify(userData.address || {city: "N/A", country: "N/A"}))
+    formData.append("gender",userData.gender || "")
+    formData.append("dob",userData.dob || userData.DOB || "")
         if(selectedImage){
       formData.append("image",selectedImage)
     }
@@ -44,7 +61,7 @@ const handleProfileUpdate=async()=>{
     if (name === "city" || name === "country") {
       setUserData((prev) => ({
         ...prev,
-        address: { ...prev.address, [name]: value },
+        address: { ...(prev.address || {}), [name]: value },
       }));
     } else {
       setUserData((prev) => ({ ...prev, [name]: value }));
@@ -52,7 +69,7 @@ const handleProfileUpdate=async()=>{
   };
 
   return (
-    userData && (
+    userData && userData.address ? (
       <div className="max-padd-container px-4 py-28 flex justify-center">
         <div className="max-w-lg w-full bg-white rounded-2xl shadow-lg p-6">
           {/* Profile Image + Name */}
@@ -123,12 +140,12 @@ const handleProfileUpdate=async()=>{
                 <input
                   type="text"
                   name="phone"
-                  value={userData.phone}
+                  value={userData.phone || ""}
                   onChange={handleChange}
                   className="border p-2 rounded w-full sm:w-2/3 focus:outline-none focus:ring-2 focus:ring-primary text-gray-900"
                 />
               ) : (
-                <p className="text-gray-900">{userData.phone}</p>
+                <p className="text-gray-900">{userData.phone || "Not provided"}</p>
               )}
             </div>
 
@@ -140,13 +157,13 @@ const handleProfileUpdate=async()=>{
               {isEditing ? (
                 <input
                   type="date"
-                  name="DOB"
-                  value={userData.DOB}
+                  name="dob"
+                  value={userData.dob || userData.DOB || ""}
                   onChange={handleChange}
                   className="border p-2 rounded w-full sm:w-2/3 focus:outline-none focus:ring-2 focus:ring-primary text-gray-900"
                 />
               ) : (
-                <p className="text-gray-900">{userData.DOB}</p>
+                <p className="text-gray-900">{userData.dob || userData.DOB || "Not Selected"}</p>
               )}
             </div>
 
@@ -158,15 +175,16 @@ const handleProfileUpdate=async()=>{
               {isEditing ? (
                 <select
                   name="gender"
-                  value={userData.gender}
+                  value={userData.gender || ""}
                   onChange={handleChange}
                   className="border p-2 rounded w-full sm:w-2/3 focus:outline-none focus:ring-2 focus:ring-primary text-gray-900"
                 >
+                  <option value="">Select Gender</option>
                   <option value="Male">Male</option>
                   <option value="Female">Female</option>
                 </select>
               ) : (
-                <p className="text-gray-900">{userData.gender}</p>
+                <p className="text-gray-900">{userData.gender || "Not Selected"}</p>
               )}
             </div>
           </div>
@@ -185,12 +203,12 @@ const handleProfileUpdate=async()=>{
                 <input
                   type="text"
                   name="city"
-                  value={userData.address.city}
+                  value={userData.address?.city || ""}
                   onChange={handleChange}
                   className="border p-2 rounded w-full sm:w-2/3 focus:outline-none focus:ring-2 focus:ring-primary text-gray-900"
                 />
               ) : (
-                <p className="text-gray-900">{userData.address.city}</p>
+                <p className="text-gray-900">{userData.address?.city || "N/A"}</p>
               )}
             </div>
 
@@ -203,12 +221,12 @@ const handleProfileUpdate=async()=>{
                 <input
                   type="text"
                   name="country"
-                  value={userData.address.country}
+                  value={userData.address?.country || ""}
                   onChange={handleChange}
                   className="border p-2 rounded w-full sm:w-2/3 focus:outline-none focus:ring-2 focus:ring-primary text-gray-900"
                 />
               ) : (
-                <p className="text-gray-900">{userData.address.country}</p>
+                <p className="text-gray-900">{userData.address?.country || "N/A"}</p>
               )}
             </div>
           </div>
@@ -231,6 +249,12 @@ const handleProfileUpdate=async()=>{
               {isEditing ? "Save Changes" : "Edit Profile"}
             </button>
           </div>
+        </div>
+      </div>
+    ) : (
+      <div className="max-padd-container px-4 py-28 flex justify-center items-center min-h-screen">
+        <div className="text-center">
+          <p className="text-gray-600 text-lg">Loading profile...</p>
         </div>
       </div>
     )

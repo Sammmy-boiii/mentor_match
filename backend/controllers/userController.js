@@ -155,12 +155,16 @@ const bookSession = async (req, res) => {
 
         const userData = await userModel.findById(userId).select("-password")
 
+        // Parse slotDate string (format: day/month/year)
+        const [day, month, year] = slotDate.split('/').map(Number)
+        const parsedDate = new Date(year, month - 1, day)
+
         const sessionData = {
             userId,
             tutId,
             tutData: tutorData,
             userData,
-            slotDate,
+            slotDate: parsedDate,
             slotTime,
             amount: tutorData.fees,
             date: Date.now()
@@ -177,11 +181,11 @@ const bookSession = async (req, res) => {
     }
 }
 //api to get user sessions for frontend 
-const listSessions=async(req,res)=>{
+const listSessions = async (req, res) => {
     try {
-        const userId=req.userId
-        const sessions=await sessionModel.find({userId})
-        res.json({success:true,sessions})
+        const userId = req.userId
+        const sessions = await sessionModel.find({ userId })
+        res.json({ success: true, sessions })
     } catch (error) {
         console.log(error)
         res.json({ success: false, message: error.message })
@@ -189,28 +193,28 @@ const listSessions=async(req,res)=>{
 }
 
 //api for cancel session
-const cancelSession=async(req,res)=>{
+const cancelSession = async (req, res) => {
     try {
-        const userId=req.userId
-        const {sessionId}=req.body
-        const sessionData=await sessionModel.findById(sessionId)
+        const userId = req.userId
+        const { sessionId } = req.body
+        const sessionData = await sessionModel.findById(sessionId)
 
         //verify session User
-        if(sessionData.userId !== userId){
-            return res.json({success:false,message:"Unauthorized access"})
+        if (sessionData.userId !== userId) {
+            return res.json({ success: false, message: "Unauthorized access" })
         }
-        await sessionModel.findByIdAndUpdate(sessionId,{cancelled:true}) 
+        await sessionModel.findByIdAndUpdate(sessionId, { cancelled: true })
         //Release tutor slot
-        const {tutId,slotDate,slotTime}=sessionData
-        const tutorData=await tutorModel.findById(tutId)
+        const { tutId, slotDate, slotTime } = sessionData
+        const tutorData = await tutorModel.findById(tutId)
 
-        let slots_booked=tutorData.slots_booked
+        let slots_booked = tutorData.slots_booked
         if (slots_booked[slotDate]) {
-            slots_booked[slotDate]=slots_booked[slotDate].filter(e=>e!==slotTime)
+            slots_booked[slotDate] = slots_booked[slotDate].filter(e => e !== slotTime)
         }
 
-        await tutorModel.findByIdAndUpdate(tutId,{slots_booked})
-        res.json({success:true,message:"Session cancelled successfully"})
+        await tutorModel.findByIdAndUpdate(tutId, { slots_booked })
+        res.json({ success: true, message: "Session cancelled successfully" })
     } catch (error) {
         console.log(error)
         res.json({ success: false, message: error.message })
@@ -248,13 +252,13 @@ const paymentEsewa = async (req, res) => {
         const taxAmount = 0
         const totalAmount = amount + taxAmount
         const transactionUuid = `${sessionId}-${Date.now()}`
-        
+
         // eSewa Sandbox/Test credentials
         const productCode = process.env.ESEWA_MERCHANT_CODE || "EPAYTEST"
-        const secretKey = process.env.ESEWA_SECRET_KEY || "8gBm/:&EnhH.1/q"
+        const secretKey = process.env.ESEWA_SECRET_KEY || "8gBm/:&EnhH.1/q("
 
         // Create signature message - exact format required by eSewa
-        const signatureMessage = `total_amount=${totalAmount},transaction_uuid=${transactionUuid},product_code=${productCode}`
+        const signatureMessage = `total_amount=${totalAmount.toFixed(1)},transaction_uuid=${transactionUuid},product_code=${productCode}`
         const signature = generateEsewaSignature(signatureMessage, secretKey)
 
         // Store transaction UUID in session for verification
@@ -316,7 +320,7 @@ const verifyEsewa = async (req, res) => {
             console.log("Failed to decode eSewa data:", decodeError)
             return res.json({ success: false, message: "Invalid payment data format" })
         }
-        
+
         const sessionData = await sessionModel.findById(sessionId)
         if (!sessionData) {
             console.log("Session not found for ID:", sessionId)
@@ -331,7 +335,7 @@ const verifyEsewa = async (req, res) => {
         if (decodedData.status === "COMPLETE") {
             // Optionally verify transaction_uuid matches (may have timestamp variations)
             const sessionIdFromUuid = decodedData.transaction_uuid?.split('-')[0]
-            
+
             if (sessionIdFromUuid === sessionId || decodedData.transaction_uuid === sessionData.transactionId) {
                 // Generate room ID for video call
                 sessionData.generateRoomId()
@@ -340,7 +344,7 @@ const verifyEsewa = async (req, res) => {
                 sessionData.paymentId = decodedData.transaction_code || decodedData.transaction_uuid
                 sessionData.transactionId = decodedData.transaction_uuid
                 await sessionData.save()
-                
+
                 console.log("Payment verified successfully!")
                 return res.json({ success: true, message: "Payment verified successfully" })
             } else {
@@ -357,6 +361,7 @@ const verifyEsewa = async (req, res) => {
     }
 }
 
+// ================= PAYMENT FAILURE HANDLER =================
 export {
     registerUser,
     loginUser,
@@ -366,5 +371,6 @@ export {
     listSessions,
     cancelSession,
     paymentEsewa,
-    verifyEsewa
+    verifyEsewa,
+    
 }

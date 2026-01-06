@@ -32,7 +32,7 @@ const Features = () => {
         {features.map((feature, index) => (
           <div
             key={index}
-            className="flex-1 flex flex-col items-center gap-y-2 p-6 bg-white text-gray-900 rounded-2xl hover:bg-[#4f47e6] transition cursor-pointer group"
+            className="flex-1 min-w-[240px] flex flex-col items-center gap-y-2 p-6 bg-white text-gray-900 rounded-2xl hover:bg-[#4f47e6] transition cursor-pointer group shadow-sm"
           >
             {React.cloneElement(feature.icon, { className: "text-secondary text-2xl mb-2 transition group-hover:text-white" })}
             <h5 className="h5 text-center group-hover:text-white">{feature.title}</h5>

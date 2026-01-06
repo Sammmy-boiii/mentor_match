@@ -1,7 +1,7 @@
 import express from 'express';
 import upload from '../middlewares/multer.js';
 import authAdmin from '../middlewares/authAdmin.js';
-import { addTutor, allTutors, loginAdmin, allSessions, cancelSession, adminDashboard, getTutorApplications, approveTutorApplication, rejectTutorApplication } from '../controllers/adminController.js';
+import { addTutor, allTutors, loginAdmin, allSessions, cancelSession, adminDashboard, getTutorApplications, approveTutorApplication, rejectTutorApplication, updateTutor, deleteTutor } from '../controllers/adminController.js';
 import { changeAvailability } from '../controllers/tutorController.js';
 
 const adminRouter = express.Router();
@@ -24,5 +24,9 @@ adminRouter.get('/dashboard', authAdmin, adminDashboard);
 adminRouter.get('/tutor-applications', authAdmin, getTutorApplications);
 adminRouter.post('/approve-application', authAdmin, approveTutorApplication);
 adminRouter.post('/reject-application', authAdmin, rejectTutorApplication);
+
+// Edit/Delete Tutor routes
+adminRouter.post('/update-tutor', authAdmin, upload.single('image'), updateTutor);
+adminRouter.post('/delete-tutor', authAdmin, deleteTutor);
 
 export default adminRouter;

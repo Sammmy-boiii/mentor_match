@@ -5,7 +5,7 @@ import sessionModel from '../models/sessionModel.js'
 const setupSocketIO = (server) => {
     const io = new Server(server, {
         cors: {
-            origin: ["http://localhost:5173", "http://localhost:5174", process.env.FRONTEND_URL, process.env.ADMIN_URL],
+            origin: ["http://localhost:5173", process.env.FRONTEND_URL],
             methods: ["GET", "POST"],
             credentials: true
         }
@@ -25,7 +25,7 @@ const setupSocketIO = (server) => {
             console.log('userType:', userType)
             console.log('accessToken:', accessToken ? accessToken.substring(0, 10) + '...' : 'none')
             console.log('activeRooms keys:', Array.from(activeRooms.keys()))
-            
+
             try {
                 // Validate access
                 const room = activeRooms.get(roomId)
@@ -36,7 +36,7 @@ const setupSocketIO = (server) => {
                 }
 
                 console.log('Room found, participants:', Array.from(room.participants.keys()))
-                
+
                 const participant = room.participants.get(userId)
                 if (!participant || participant.token !== accessToken) {
                     console.log('ERROR: Invalid credentials')
@@ -46,7 +46,7 @@ const setupSocketIO = (server) => {
                     socket.emit('error', { message: 'Invalid access credentials' })
                     return
                 }
-                
+
                 console.log('Credentials valid, joining room...')
 
                 // Join socket room
@@ -88,16 +88,17 @@ const setupSocketIO = (server) => {
                 socket.emit('room-users', { users: existingUsers })
                 console.log('Sent existing users to new participant:', existingUsers)
 
-                // Check if both participants are present
+                // Check if both participants are present and start call atomically
                 const participantCount = room.participants.size
                 if (participantCount >= 2) {
-                    // Update session status to in-progress
-                    const session = await sessionModel.findOne({ roomId })
-                    if (session && session.callStatus !== 'in-progress') {
-                        session.callStatus = 'in-progress'
-                        session.callStartedAt = new Date()
-                        await session.save()
-                        
+                    const session = await sessionModel.findOneAndUpdate(
+                        { roomId, callStatus: { $ne: 'in-progress' } },
+                        { $set: { callStatus: 'in-progress', callStartedAt: new Date() } },
+                        { new: true }
+                    )
+
+                    if (session) {
+                        console.log(`Call started in room ${roomId}. Timestamp: ${session.callStartedAt}`)
                         io.to(roomId).emit('call-started', {
                             callStartedAt: session.callStartedAt
                         })
@@ -113,7 +114,7 @@ const setupSocketIO = (server) => {
         })
 
         // ================= WEBRTC SIGNALING =================
-        
+
         // Send offer to specific peer
         socket.on('offer', ({ offer, targetSocketId }) => {
             console.log(`=== OFFER: ${socket.id} -> ${targetSocketId} ===`)
@@ -143,7 +144,7 @@ const setupSocketIO = (server) => {
         })
 
         // ================= CALL CONTROLS =================
-        
+
         // Mute/unmute audio
         socket.on('toggle-audio', ({ roomId, isMuted }) => {
             socket.to(roomId).emit('peer-audio-toggle', {
@@ -178,8 +179,6 @@ const setupSocketIO = (server) => {
             }
             // Send to others in room (not back to sender)
             socket.to(roomId).emit('chat-message', msgData)
-            // Send confirmation back to sender with the same data
-            socket.emit('chat-message-sent', msgData)
         })
 
         // ================= END CALL =================
@@ -268,7 +267,7 @@ const setupSocketIO = (server) => {
     const handleUserLeave = async (socket, roomId) => {
         try {
             socket.leave(roomId)
-            
+
             // Remove from room sockets
             if (roomSockets.has(roomId)) {
                 const sockets = roomSockets.get(roomId)
@@ -280,19 +279,41 @@ const setupSocketIO = (server) => {
                 }
             }
 
-            // Remove from active rooms
+            // Remove from active rooms - only if the socket ID matches
             const room = activeRooms.get(roomId)
             if (room && socket.odId) {
-                room.participants.delete(socket.odId)
-                
-                // Notify others
-                socket.to(roomId).emit('user-left', {
-                    odId: socket.odId,
-                    userType: socket.userType
-                })
+                const participant = room.participants.get(socket.odId)
+                if (participant && participant.socketId === socket.id) {
+                    room.participants.delete(socket.odId)
 
-                // If room is empty, clean up
+                    // Notify others
+                    socket.to(roomId).emit('user-left', {
+                        odId: socket.odId,
+                        userType: socket.userType
+                    })
+                }
+
+                // If room is empty, clean up and update database
                 if (room.participants.size === 0) {
+                    // Update session in database
+                    try {
+                        const session = await sessionModel.findOne({ roomId })
+                        if (session && session.callStatus !== 'ended') {
+                            let duration = 0
+                            if (session.callStartedAt) {
+                                duration = Math.floor((Date.now() - session.callStartedAt.getTime()) / 1000)
+                            }
+                            session.callStatus = 'ended'
+                            session.callEndedAt = new Date()
+                            session.callDuration = duration
+                            session.isCompleted = true
+                            await session.save()
+                            console.log(`Room ${roomId} ended automatically (empty). Duration: ${duration}s`)
+                        }
+                    } catch (dbError) {
+                        console.error('Error updating session on room empty:', dbError)
+                    }
+
                     activeRooms.delete(roomId)
                     roomSockets.delete(roomId)
                 }
@@ -309,14 +330,14 @@ const setupSocketIO = (server) => {
                 const socket = io.sockets.sockets.get(socketId)
                 if (!socket || !socket.connected) {
                     sockets.delete(odId)
-                    
+
                     const room = activeRooms.get(roomId)
                     if (room) {
                         room.participants.delete(odId)
                     }
                 }
             }
-            
+
             if (sockets.size === 0) {
                 roomSockets.delete(roomId)
             }

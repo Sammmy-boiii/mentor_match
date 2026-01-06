@@ -5,21 +5,25 @@ import { FaMicrophone, FaMicrophoneSlash, FaVideo, FaVideoSlash, FaPhoneSlash, F
 // Global map to track active initializations (prevents duplicate connections from StrictMode)
 const activeConnections = new Map();
 
-const VideoCall = ({ 
-    roomId, 
-    userId, 
-    userType, 
-    accessToken, 
-    userData, 
-    peerData, 
-    backendUrl, 
+const VideoCall = ({
+    roomId,
+    userId,
+    userType,
+    accessToken,
+    userData,
+    peerData,
+    backendUrl,
     onCallEnd,
-    onError 
+    onError
 }) => {
+    // Ensure accessToken is set from localStorage if not provided
+    const effectiveAccessToken = accessToken || localStorage.getItem('token') || localStorage.getItem('tToken') || localStorage.getItem('aToken') || "";
+
     // Refs
     const localVideoRef = useRef(null);
     const remoteVideoRef = useRef(null);
-    const peerConnectionRef = useRef(null);
+    const peerConnectionsRef = useRef(new Map()); // Map<socketId, RTCPeerConnection>
+    const candidateQueueRef = useRef(new Map()); // Map<socketId, RTCIceCandidate[]>
     const socketRef = useRef(null);
     const localStreamRef = useRef(null);
     const reconnectTimeoutRef = useRef(null);
@@ -39,6 +43,7 @@ const VideoCall = ({
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [peerStatus, setPeerStatus] = useState('waiting');
     const [error, setError] = useState(null);
+    const [remoteStream, setRemoteStream] = useState(null);
 
     // WebRTC Configuration with STUN/TURN servers
     const rtcConfig = {
@@ -78,7 +83,7 @@ const VideoCall = ({
     const initializeMedia = useCallback(async () => {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({
-                video: { 
+                video: {
                     width: { ideal: 1280 },
                     height: { ideal: 720 },
                     facingMode: 'user'
@@ -89,7 +94,7 @@ const VideoCall = ({
                     autoGainControl: true
                 }
             });
-            
+
             localStreamRef.current = stream;
             if (localVideoRef.current) {
                 localVideoRef.current.srcObject = stream;
@@ -106,7 +111,7 @@ const VideoCall = ({
     // Create peer connection
     const createPeerConnection = useCallback((targetSocketId) => {
         const pc = new RTCPeerConnection(rtcConfig);
-        
+
         // Add local tracks
         if (localStreamRef.current) {
             localStreamRef.current.getTracks().forEach(track => {
@@ -126,9 +131,9 @@ const VideoCall = ({
 
         // Handle connection state changes
         pc.onconnectionstatechange = () => {
-            console.log('Connection state:', pc.connectionState);
+            console.log('Connection state for', targetSocketId, ':', pc.connectionState);
             setConnectionState(pc.connectionState);
-            
+
             if (pc.connectionState === 'connected') {
                 setIsCallActive(true);
                 setPeerStatus('connected');
@@ -143,7 +148,7 @@ const VideoCall = ({
 
         // Handle ICE connection state
         pc.oniceconnectionstatechange = () => {
-            console.log('ICE connection state:', pc.iceConnectionState);
+            console.log('ICE connection state for', targetSocketId, ':', pc.iceConnectionState);
             if (pc.iceConnectionState === 'disconnected') {
                 attemptReconnection();
             }
@@ -151,20 +156,33 @@ const VideoCall = ({
 
         // Handle remote stream
         pc.ontrack = (event) => {
-            console.log('Received remote track');
-            if (remoteVideoRef.current && event.streams[0]) {
-                remoteVideoRef.current.srcObject = event.streams[0];
+            console.log('Received remote track from', targetSocketId, ':', event.track.kind);
+            let stream = event.streams[0];
+            if (!stream) {
+                // Fallback for browsers that don't provide streams in event
+                stream = new MediaStream([event.track]);
+            }
+
+            setRemoteStream(stream);
+            if (remoteVideoRef.current) {
+                remoteVideoRef.current.srcObject = stream;
             }
         };
 
-        peerConnectionRef.current = pc;
+        // Store in map
+        peerConnectionsRef.current.set(targetSocketId, pc);
+        // Ensure there's an array for queued candidates
+        if (!candidateQueueRef.current.has(targetSocketId)) {
+            candidateQueueRef.current.set(targetSocketId, []);
+        }
+
         return pc;
     }, []);
 
     // Attempt reconnection
     const attemptReconnection = useCallback(() => {
         if (reconnectTimeoutRef.current) return;
-        
+
         reconnectTimeoutRef.current = setTimeout(() => {
             console.log('Attempting to reconnect...');
             if (socketRef.current && roomId) {
@@ -181,18 +199,44 @@ const VideoCall = ({
     // Create offer for peer - defined as ref to avoid closure issues
     const createOfferForPeerRef = useRef(null);
 
+    // Effect to ensure remote video element has the right source and is playing
+    useEffect(() => {
+        if (remoteVideoRef.current && remoteStream) {
+            if (remoteVideoRef.current.srcObject !== remoteStream) {
+                console.log('Attaching remote stream to video element');
+                remoteVideoRef.current.srcObject = remoteStream;
+            }
+            // Explicitly call play to handle potential autoplay blockers
+            remoteVideoRef.current.play().catch(err => {
+                console.warn('Auto-play failed for remote video, may need user interaction:', err);
+            });
+        }
+    }, [remoteStream]);
+
     // Initialize socket and WebRTC
     useEffect(() => {
         // Define createOfferForPeer inside useEffect to access latest refs
         const createOfferForPeer = async (targetSocketId) => {
             try {
-                const pc = createPeerConnection(targetSocketId);
+                let pc = peerConnectionsRef.current.get(targetSocketId);
+                if (!pc) pc = createPeerConnection(targetSocketId);
+
+                // Double check tracks are added
+                if (localStreamRef.current) {
+                    const senders = pc.getSenders();
+                    localStreamRef.current.getTracks().forEach(track => {
+                        if (!senders.find(s => s.track === track)) {
+                            pc.addTrack(track, localStreamRef.current);
+                        }
+                    });
+                }
+
                 const offer = await pc.createOffer({
                     offerToReceiveAudio: true,
                     offerToReceiveVideo: true
                 });
                 await pc.setLocalDescription(offer);
-                
+
                 socketRef.current?.emit('offer', {
                     offer,
                     targetSocketId
@@ -214,10 +258,14 @@ const VideoCall = ({
             }
             activeConnections.set(connectionKey, true);
             initializingRef.current = true;
-            
+
             try {
                 // Initialize media first
-                await initializeMedia();
+                const stream = await initializeMedia();
+                if (!initializingRef.current) {
+                    stream.getTracks().forEach(t => t.stop());
+                    return;
+                }
 
                 // Connect to socket
                 const socket = io(backendUrl, {
@@ -232,14 +280,18 @@ const VideoCall = ({
                 socket.on('connect', () => {
                     console.log('Socket connected:', socket.id);
                     setIsConnected(true);
-                    
+
                     // Join room
-                    socket.emit('join-room', {
-                        roomId,
-                        userId,
-                        userType,
-                        accessToken
-                    });
+                    if (initializingRef.current) {
+                        socket.emit('join-room', {
+                            roomId,
+                            userId,
+                            userType,
+                            accessToken: effectiveAccessToken
+                        });
+                    } else {
+                        socket.disconnect();
+                    }
                 });
 
                 socket.on('disconnect', () => {
@@ -272,52 +324,81 @@ const VideoCall = ({
                     createOfferForPeer(socketId);
                 });
 
-                // Handle incoming offer
+                // ================= PERFECT NEGOTIATION PATTERN =================
+                let isSettingRemoteAnswerPending = false;
+
                 socket.on('offer', async ({ offer, senderSocketId }) => {
-                    console.log('Received offer from:', senderSocketId);
-                    setPeerStatus('answering');
                     try {
-                        // Close any existing peer connection before creating new one
-                        if (peerConnectionRef.current) {
-                            peerConnectionRef.current.close();
+                        let pc = peerConnectionsRef.current.get(senderSocketId);
+                        if (!pc) pc = createPeerConnection(senderSocketId);
+
+                        const isPolite = socket.id.localeCompare(senderSocketId) < 0;
+                        const offerCollision = pc.signalingState !== "stable" || isSettingRemoteAnswerPending;
+
+                        if (offerCollision) {
+                            if (!isPolite) return; // Impolite peer ignores offer collision
+                            await pc.setLocalDescription({ type: 'rollback' });
                         }
-                        
-                        const pc = createPeerConnection(senderSocketId);
+
                         await pc.setRemoteDescription(new RTCSessionDescription(offer));
-                        const answer = await pc.createAnswer();
-                        await pc.setLocalDescription(answer);
-                        
+                        await pc.setLocalDescription();
+
                         socket.emit('answer', {
-                            answer,
+                            answer: pc.localDescription,
                             targetSocketId: senderSocketId
                         });
-                        console.log('Sent answer to:', senderSocketId);
+
+                        // Drain queued ICE candidates
+                        const queued = candidateQueueRef.current.get(senderSocketId) || [];
+                        for (const qc of queued) {
+                            try {
+                                await pc.addIceCandidate(new RTCIceCandidate(qc));
+                            } catch (e) { }
+                        }
+                        candidateQueueRef.current.set(senderSocketId, []);
+
                     } catch (err) {
                         console.error('Error handling offer:', err);
                     }
                 });
 
                 // Handle incoming answer
-                socket.on('answer', async ({ answer }) => {
-                    console.log('Received answer');
+                socket.on('answer', async ({ answer, senderSocketId }) => {
                     try {
-                        if (peerConnectionRef.current) {
-                            await peerConnectionRef.current.setRemoteDescription(
-                                new RTCSessionDescription(answer)
-                            );
+                        const pc = peerConnectionsRef.current.get(senderSocketId);
+                        if (!pc) return;
+
+                        isSettingRemoteAnswerPending = true;
+                        await pc.setRemoteDescription(new RTCSessionDescription(answer));
+                        isSettingRemoteAnswerPending = false;
+
+                        const queued = candidateQueueRef.current.get(senderSocketId) || [];
+                        for (const qc of queued) {
+                            try {
+                                await pc.addIceCandidate(new RTCIceCandidate(qc));
+                            } catch (e) { }
                         }
+                        candidateQueueRef.current.set(senderSocketId, []);
                     } catch (err) {
                         console.error('Error handling answer:', err);
+                    } finally {
+                        isSettingRemoteAnswerPending = false;
                     }
                 });
 
                 // Handle ICE candidates
-                socket.on('ice-candidate', async ({ candidate }) => {
+                socket.on('ice-candidate', async ({ candidate, senderSocketId }) => {
                     try {
-                        if (peerConnectionRef.current && candidate) {
-                            await peerConnectionRef.current.addIceCandidate(
-                                new RTCIceCandidate(candidate)
-                            );
+                        if (!candidate) return;
+                        const pc = peerConnectionsRef.current.get(senderSocketId);
+                        // If we have a pc and its remoteDescription is set, add immediately
+                        if (pc && pc.remoteDescription && pc.remoteDescription.type) {
+                            await pc.addIceCandidate(new RTCIceCandidate(candidate));
+                        } else {
+                            // Queue candidate until remote description is applied
+                            const q = candidateQueueRef.current.get(senderSocketId) || [];
+                            q.push(candidate);
+                            candidateQueueRef.current.set(senderSocketId, q);
                         }
                     } catch (err) {
                         console.error('Error adding ICE candidate:', err);
@@ -360,10 +441,10 @@ const VideoCall = ({
                     setMessages(prev => [...prev, msg]);
                 });
 
-                // Handle own message sent confirmation
-                socket.on('chat-message-sent', (msg) => {
-                    setMessages(prev => [...prev, { ...msg, isSelf: true }]);
-                });
+                // Handle own message sent confirmation - REMOVED (Optimistic UI used instead)
+                // socket.on('chat-message-sent', (msg) => {
+                //     setMessages(prev => [...prev, { ...msg, isSelf: true }]);
+                // });
 
                 // Handle reconnection success
                 socket.on('reconnect-success', () => {
@@ -392,21 +473,24 @@ const VideoCall = ({
             const connectionKey = `${roomId}-${userId}`;
             activeConnections.delete(connectionKey);
             initializingRef.current = false;
-            
+
             if (reconnectTimeoutRef.current) {
                 clearTimeout(reconnectTimeoutRef.current);
             }
-            
+
             if (localStreamRef.current) {
                 localStreamRef.current.getTracks().forEach(track => track.stop());
                 localStreamRef.current = null;
             }
-            
-            if (peerConnectionRef.current) {
-                peerConnectionRef.current.close();
-                peerConnectionRef.current = null;
+
+            // Close all peer connections
+            if (peerConnectionsRef.current && peerConnectionsRef.current.size > 0) {
+                for (const [id, pc] of peerConnectionsRef.current.entries()) {
+                    try { pc.close(); } catch (e) { /* ignore */ }
+                }
+                peerConnectionsRef.current.clear();
             }
-            
+
             if (socketRef.current) {
                 socketRef.current.emit('leave-room', { roomId });
                 socketRef.current.disconnect();
@@ -447,23 +531,24 @@ const VideoCall = ({
                     video: true,
                     audio: true
                 });
-                
+
                 const videoTrack = screenStream.getVideoTracks()[0];
-                const sender = peerConnectionRef.current?.getSenders()
-                    .find(s => s.track?.kind === 'video');
-                
-                if (sender) {
-                    await sender.replaceTrack(videoTrack);
+                // Replace video sender on all peer connections
+                for (const pc of peerConnectionsRef.current.values()) {
+                    const sender = pc.getSenders().find(s => s.track?.kind === 'video');
+                    if (sender) {
+                        try { await sender.replaceTrack(videoTrack); } catch (e) { console.warn('replaceTrack failed for screen share', e); }
+                    }
                 }
-                
+
                 if (localVideoRef.current) {
                     localVideoRef.current.srcObject = screenStream;
                 }
-                
+
                 videoTrack.onended = () => {
                     stopScreenShare();
                 };
-                
+
                 setIsScreenSharing(true);
                 socketRef.current?.emit('screen-share', { roomId, isSharing: true });
             } else {
@@ -478,13 +563,14 @@ const VideoCall = ({
     const stopScreenShare = async () => {
         if (localStreamRef.current) {
             const videoTrack = localStreamRef.current.getVideoTracks()[0];
-            const sender = peerConnectionRef.current?.getSenders()
-                .find(s => s.track?.kind === 'video');
-            
-            if (sender && videoTrack) {
-                await sender.replaceTrack(videoTrack);
+            // Replace back video sender on all peer connections
+            for (const pc of peerConnectionsRef.current.values()) {
+                const sender = pc.getSenders().find(s => s.track?.kind === 'video');
+                if (sender && videoTrack) {
+                    try { await sender.replaceTrack(videoTrack); } catch (e) { console.warn('replaceTrack failed restoring camera', e); }
+                }
             }
-            
+
             if (localVideoRef.current) {
                 localVideoRef.current.srcObject = localStreamRef.current;
             }
@@ -502,15 +588,19 @@ const VideoCall = ({
     // Handle call end
     const handleCallEnd = (duration) => {
         setIsCallActive(false);
-        
+
         if (localStreamRef.current) {
             localStreamRef.current.getTracks().forEach(track => track.stop());
         }
-        
-        if (peerConnectionRef.current) {
-            peerConnectionRef.current.close();
+
+        // Close all peer connections
+        if (peerConnectionsRef.current && peerConnectionsRef.current.size > 0) {
+            for (const pc of peerConnectionsRef.current.values()) {
+                try { pc.close(); } catch (e) { /* ignore */ }
+            }
+            peerConnectionsRef.current.clear();
         }
-        
+
         onCallEnd?.(duration);
     };
 
@@ -518,6 +608,17 @@ const VideoCall = ({
     const sendMessage = (e) => {
         e.preventDefault();
         if (newMessage.trim() && socketRef.current) {
+            const msgData = {
+                roomId,
+                message: newMessage.trim(),
+                senderId: userId,
+                timestamp: Date.now(),
+                isSelf: true
+            };
+
+            // Optimistic UI update
+            setMessages(prev => [...prev, msgData]);
+
             socketRef.current.emit('chat-message', {
                 roomId,
                 message: newMessage.trim()
@@ -561,12 +662,12 @@ const VideoCall = ({
                         {connectionState === 'connected' ? 'Connected' : connectionState}
                     </span>
                 </div>
-                
+
                 <div className="flex items-center gap-4">
                     <span className="text-white font-mono text-lg">
                         {formatDuration(callDuration)}
                     </span>
-                    <button 
+                    <button
                         onClick={toggleFullscreen}
                         className="text-gray-300 hover:text-white transition"
                     >
@@ -584,7 +685,7 @@ const VideoCall = ({
                     playsInline
                     className="w-full h-full object-cover"
                 />
-                
+
                 {/* Peer Status Overlay */}
                 {peerStatus !== 'connected' && (
                     <div className="absolute inset-0 flex items-center justify-center bg-gray-800 bg-opacity-75">
@@ -627,23 +728,22 @@ const VideoCall = ({
                     <div className="absolute right-6 top-6 bottom-24 w-80 bg-gray-800 rounded-xl shadow-lg flex flex-col">
                         <div className="flex items-center justify-between p-4 border-b border-gray-700">
                             <h3 className="text-white font-medium">Chat</h3>
-                            <button 
+                            <button
                                 onClick={() => setShowChat(false)}
                                 className="text-gray-400 hover:text-white"
                             >
                                 <FaTimes />
                             </button>
                         </div>
-                        
+
                         <div className="flex-1 overflow-y-auto p-4 space-y-3">
                             {messages.map((msg, idx) => (
-                                <div 
+                                <div
                                     key={idx}
-                                    className={`p-3 rounded-lg ${
-                                        msg.senderId === userId 
-                                            ? 'bg-blue-600 ml-auto' 
-                                            : 'bg-gray-700'
-                                    } max-w-[80%]`}
+                                    className={`p-3 rounded-lg ${msg.senderId === userId
+                                        ? 'bg-blue-600 ml-auto'
+                                        : 'bg-gray-700'
+                                        } max-w-[80%]`}
                                 >
                                     <p className="text-white text-sm">{msg.message}</p>
                                     <span className="text-xs text-gray-300 mt-1 block">
@@ -652,7 +752,7 @@ const VideoCall = ({
                                 </div>
                             ))}
                         </div>
-                        
+
                         <form onSubmit={sendMessage} className="p-4 border-t border-gray-700">
                             <div className="flex gap-2">
                                 <input
@@ -678,11 +778,10 @@ const VideoCall = ({
             <div className="flex items-center justify-center gap-4 py-6 bg-gray-800">
                 <button
                     onClick={toggleMute}
-                    className={`w-14 h-14 rounded-full flex items-center justify-center transition ${
-                        isMuted 
-                            ? 'bg-red-500 hover:bg-red-600' 
-                            : 'bg-gray-600 hover:bg-gray-500'
-                    }`}
+                    className={`w-14 h-14 rounded-full flex items-center justify-center transition ${isMuted
+                        ? 'bg-red-500 hover:bg-red-600'
+                        : 'bg-gray-600 hover:bg-gray-500'
+                        }`}
                     title={isMuted ? 'Unmute' : 'Mute'}
                 >
                     {isMuted ? <FaMicrophoneSlash className="text-white text-xl" /> : <FaMicrophone className="text-white text-xl" />}
@@ -690,11 +789,10 @@ const VideoCall = ({
 
                 <button
                     onClick={toggleVideo}
-                    className={`w-14 h-14 rounded-full flex items-center justify-center transition ${
-                        isVideoOff 
-                            ? 'bg-red-500 hover:bg-red-600' 
-                            : 'bg-gray-600 hover:bg-gray-500'
-                    }`}
+                    className={`w-14 h-14 rounded-full flex items-center justify-center transition ${isVideoOff
+                        ? 'bg-red-500 hover:bg-red-600'
+                        : 'bg-gray-600 hover:bg-gray-500'
+                        }`}
                     title={isVideoOff ? 'Turn on camera' : 'Turn off camera'}
                 >
                     {isVideoOff ? <FaVideoSlash className="text-white text-xl" /> : <FaVideo className="text-white text-xl" />}
@@ -702,11 +800,10 @@ const VideoCall = ({
 
                 <button
                     onClick={toggleScreenShare}
-                    className={`w-14 h-14 rounded-full flex items-center justify-center transition ${
-                        isScreenSharing 
-                            ? 'bg-blue-500 hover:bg-blue-600' 
-                            : 'bg-gray-600 hover:bg-gray-500'
-                    }`}
+                    className={`w-14 h-14 rounded-full flex items-center justify-center transition ${isScreenSharing
+                        ? 'bg-blue-500 hover:bg-blue-600'
+                        : 'bg-gray-600 hover:bg-gray-500'
+                        }`}
                     title={isScreenSharing ? 'Stop sharing' : 'Share screen'}
                 >
                     <FaDesktop className="text-white text-xl" />
@@ -714,11 +811,10 @@ const VideoCall = ({
 
                 <button
                     onClick={() => setShowChat(!showChat)}
-                    className={`w-14 h-14 rounded-full flex items-center justify-center transition ${
-                        showChat 
-                            ? 'bg-blue-500 hover:bg-blue-600' 
-                            : 'bg-gray-600 hover:bg-gray-500'
-                    }`}
+                    className={`w-14 h-14 rounded-full flex items-center justify-center transition ${showChat
+                        ? 'bg-blue-500 hover:bg-blue-600'
+                        : 'bg-gray-600 hover:bg-gray-500'
+                        }`}
                     title="Chat"
                 >
                     <FaComments className="text-white text-xl" />
@@ -737,7 +833,7 @@ const VideoCall = ({
             {error && (
                 <div className="absolute top-20 left-1/2 transform -translate-x-1/2 bg-red-600 text-white px-6 py-3 rounded-lg shadow-lg">
                     {error}
-                    <button 
+                    <button
                         onClick={() => setError(null)}
                         className="ml-4 text-white hover:text-gray-200"
                     >

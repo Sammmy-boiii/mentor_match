@@ -2,19 +2,19 @@ import React, { useContext, useEffect, useState } from "react";
 import { AppContext } from "../context/AppContext";
 import loginImg from "../assets/login.png"; // make sure the path is correct
 import axios from "axios";
-import {toast} from "react-toastify"
+import { toast } from "react-toastify"
 
 const Login = () => {
   const { navigate, token, setToken, backendUrl } = useContext(AppContext);
   const [loginType, setLoginType] = useState("User"); // User, Tutor, Admin
   const [currState, setCurrState] = useState("Login"); // Login or Sign Up (only for User)
   const [tutorMode, setTutorMode] = useState("apply"); // apply or login (for Tutor)
-  
+
   // Common fields
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  
+
   // Tutor application fields
   const [phone, setPhone] = useState("");
   const [age, setAge] = useState("");
@@ -37,9 +37,8 @@ const Login = () => {
         if (currState === "Sign Up") {
           const { data } = await axios.post(backendUrl + '/api/user/register', { name, email, password })
           if (data.success) {
-            localStorage.setItem("token", data.token)
-            setToken(data.token)
-            toast.success("Account created successfully!")
+            setCurrState("Login")
+            toast.success("Account created successfully! Please login.")
           } else {
             toast.error(data.message)
           }
@@ -80,7 +79,7 @@ const Login = () => {
           const { data } = await axios.post(backendUrl + '/api/tutor/apply', formData, {
             headers: { 'Content-Type': 'multipart/form-data' }
           })
-          
+
           if (data.success) {
             toast.success(data.message)
             // Reset form
@@ -196,33 +195,30 @@ const Login = () => {
                 <button
                   type="button"
                   onClick={() => setLoginType("User")}
-                  className={`flex-1 py-2 px-4 text-sm font-medium transition ${
-                    loginType === "User"
+                  className={`flex-1 py-2 px-4 text-sm font-medium transition ${loginType === "User"
                       ? "bg-[#4f47e6] text-white"
                       : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                  }`}
+                    }`}
                 >
                   User
                 </button>
                 <button
                   type="button"
                   onClick={() => setLoginType("Tutor")}
-                  className={`flex-1 py-2 px-4 text-sm font-medium transition border-l border-r border-gray-300 ${
-                    loginType === "Tutor"
+                  className={`flex-1 py-2 px-4 text-sm font-medium transition border-l border-r border-gray-300 ${loginType === "Tutor"
                       ? "bg-[#4f47e6] text-white"
                       : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                  }`}
+                    }`}
                 >
                   Tutor
                 </button>
                 <button
                   type="button"
                   onClick={() => setLoginType("Admin")}
-                  className={`flex-1 py-2 px-4 text-sm font-medium transition ${
-                    loginType === "Admin"
+                  className={`flex-1 py-2 px-4 text-sm font-medium transition ${loginType === "Admin"
                       ? "bg-[#4f47e6] text-white"
                       : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                  }`}
+                    }`}
                 >
                   Admin
                 </button>
@@ -236,22 +232,20 @@ const Login = () => {
                   <button
                     type="button"
                     onClick={() => setTutorMode("apply")}
-                    className={`flex-1 py-2 px-4 text-sm font-medium transition ${
-                      tutorMode === "apply"
+                    className={`flex-1 py-2 px-4 text-sm font-medium transition ${tutorMode === "apply"
                         ? "bg-green-600 text-white"
                         : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                    }`}
+                      }`}
                   >
                     Apply as Tutor
                   </button>
                   <button
                     type="button"
                     onClick={() => setTutorMode("login")}
-                    className={`flex-1 py-2 px-4 text-sm font-medium transition ${
-                      tutorMode === "login"
+                    className={`flex-1 py-2 px-4 text-sm font-medium transition ${tutorMode === "login"
                         ? "bg-green-600 text-white"
                         : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                    }`}
+                      }`}
                   >
                     Tutor Login
                   </button>
@@ -261,9 +255,9 @@ const Login = () => {
 
             <div className="w-full mb-2">
               <h3 className="text-3xl font-bold text-gray-900">
-                {loginType === "User" 
-                  ? currState 
-                  : loginType === "Tutor" 
+                {loginType === "User"
+                  ? currState
+                  : loginType === "Tutor"
                     ? (tutorMode === "apply" ? "Tutor Application" : "Tutor Login")
                     : "Admin Login"}
               </h3>
@@ -271,12 +265,12 @@ const Login = () => {
                 {loginType === "User" && currState === "Sign Up"
                   ? "Create your account to get started"
                   : loginType === "Tutor" && tutorMode === "apply"
-                  ? "Fill out the form to apply as a tutor"
-                  : loginType === "Tutor" && tutorMode === "login"
-                  ? "Login with your approved tutor credentials"
-                  : loginType === "Admin"
-                  ? "Admin access only"
-                  : "Welcome back! Please enter your details"}
+                    ? "Fill out the form to apply as a tutor"
+                    : loginType === "Tutor" && tutorMode === "login"
+                      ? "Login with your approved tutor credentials"
+                      : loginType === "Admin"
+                        ? "Admin access only"
+                        : "Welcome back! Please enter your details"}
               </p>
             </div>
 
@@ -573,11 +567,11 @@ const Login = () => {
               className="w-full mt-4 py-2 rounded-md text-white font-semibold hover:opacity-90 transition"
               style={{ backgroundColor: loginType === "Tutor" && tutorMode === "apply" ? '#16a34a' : '#4f47e6' }}
             >
-              {loginType === "User" && currState === "Sign Up" 
-                ? "Sign Up" 
+              {loginType === "User" && currState === "Sign Up"
+                ? "Sign Up"
                 : loginType === "Tutor" && tutorMode === "apply"
-                ? "Submit Application"
-                : "Login"}
+                  ? "Submit Application"
+                  : "Login"}
             </button>
 
             {/* Switch between Login/Sign Up - Only for User type */}

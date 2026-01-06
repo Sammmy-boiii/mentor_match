@@ -3,13 +3,19 @@ import { createRoot } from "react-dom/client";
 import "./index.css";
 import App from "./App.jsx";
 import { BrowserRouter } from "react-router-dom";
-import AppContextProvider from "./context/AppContext.jsx"; // adjust path if needed
+import AppContextProvider from "./context/AppContext.jsx";
+import AdminContextProvider from "./context/AdminContext.jsx";
+import TutorContextProvider from "./context/TutorContext.jsx";
 
 createRoot(document.getElementById("root")).render(
   <StrictMode>
     <BrowserRouter>
       <AppContextProvider>
-        <App />
+        <AdminContextProvider>
+          <TutorContextProvider>
+            <App />
+          </TutorContextProvider>
+        </AdminContextProvider>
       </AppContextProvider>
     </BrowserRouter>
   </StrictMode>

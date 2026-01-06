@@ -1,7 +1,7 @@
 import React from 'react'
 import { FaRegWindowClose } from 'react-icons/fa'
 import { Link, NavLink } from 'react-router-dom'
-import MentorLogo from "../assets/MentorLogo.png"  
+import MentorLogos from "../assets/MentorLogos.png"
 
 const Navbar = ({ containerStyles, toggleMenu, menuOpened }) => {
   const navItems = [
@@ -23,11 +23,11 @@ const Navbar = ({ containerStyles, toggleMenu, menuOpened }) => {
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2">
             <img
-              src={MentorLogo}
+              src={MentorLogos}
               alt="Mentor Match Logo"
               className="h-20 w-auto object-contain"
             /></Link>
-            <span className="bold-24 tracking-wide">Mentor Match</span>
+          <span className="bold-24 tracking-wide">Mentor Match</span>
           {/* </Link> */}
         </>
       )}

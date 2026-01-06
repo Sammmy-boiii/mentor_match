@@ -93,6 +93,7 @@ const Session = () => {
       const month = dateObj.getMonth() + 1;
       const year = dateObj.getFullYear();
 
+      // Format as day/month/year for database storage (matches underscore format)
       const slotDate = `${day}/${month}/${year}`;
 
       const { data } = await axios.post(
