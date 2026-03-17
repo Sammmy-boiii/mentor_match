@@ -29,11 +29,6 @@ const generateRoomId = async (req, res) => {
             return res.json({ success: false, message: "Unauthorized access" })
         }
 
-        // Check if payment is completed
-        if (!session.payment) {
-            return res.json({ success: false, message: "Payment not completed. Please complete payment first." })
-        }
-
         // Check if session is cancelled or completed
         if (session.cancelled) {
             return res.json({ success: false, message: "Session has been cancelled" })
@@ -94,11 +89,6 @@ const joinRoom = async (req, res) => {
 
         if (!isAuthorized) {
             return res.json({ success: false, message: "You are not authorized to join this room" })
-        }
-
-        // Check payment status
-        if (!session.payment) {
-            return res.json({ success: false, message: "Payment not completed" })
         }
 
         // Check session status
@@ -166,11 +156,6 @@ const tutorJoinRoom = async (req, res) => {
         // Verify tutor is authorized (convert to string for comparison)
         if (session.tutId.toString() !== tutId) {
             return res.json({ success: false, message: "You are not authorized to join this room" })
-        }
-
-        // Check payment and session status
-        if (!session.payment) {
-            return res.json({ success: false, message: "Payment not completed" })
         }
 
         if (session.cancelled) {

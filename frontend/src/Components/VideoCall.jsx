@@ -5,6 +5,17 @@ import { FaMicrophone, FaMicrophoneSlash, FaVideo, FaVideoSlash, FaPhoneSlash, F
 // Global map to track active initializations (prevents duplicate connections from StrictMode)
 const activeConnections = new Map();
 
+const rtcConfig = {
+    iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun2.l.google.com:19302' },
+        { urls: 'stun:stun3.l.google.com:19302' },
+        { urls: 'stun:stun4.l.google.com:19302' },
+    ],
+    iceCandidatePoolSize: 10
+};
+
 const VideoCall = ({
     roomId,
     userId,
@@ -24,6 +35,7 @@ const VideoCall = ({
     const remoteVideoRef = useRef(null);
     const peerConnectionsRef = useRef(new Map()); // Map<socketId, RTCPeerConnection>
     const candidateQueueRef = useRef(new Map()); // Map<socketId, RTCIceCandidate[]>
+    const remoteStreamsRef = useRef(new Map()); // Map<socketId, MediaStream> - Track remote streams per peer
     const socketRef = useRef(null);
     const localStreamRef = useRef(null);
     const reconnectTimeoutRef = useRef(null);
@@ -44,18 +56,6 @@ const VideoCall = ({
     const [peerStatus, setPeerStatus] = useState('waiting');
     const [error, setError] = useState(null);
     const [remoteStream, setRemoteStream] = useState(null);
-
-    // WebRTC Configuration with STUN/TURN servers
-    const rtcConfig = {
-        iceServers: [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' },
-            { urls: 'stun:stun2.l.google.com:19302' },
-            { urls: 'stun:stun3.l.google.com:19302' },
-            { urls: 'stun:stun4.l.google.com:19302' },
-        ],
-        iceCandidatePoolSize: 10
-    };
 
     // Timer effect
     useEffect(() => {
@@ -157,16 +157,35 @@ const VideoCall = ({
         // Handle remote stream
         pc.ontrack = (event) => {
             console.log('Received remote track from', targetSocketId, ':', event.track.kind);
-            let stream = event.streams[0];
-            if (!stream) {
-                // Fallback for browsers that don't provide streams in event
-                stream = new MediaStream([event.track]);
+            
+            // Get or create the remote stream for this peer
+            let remoteStream = remoteStreamsRef.current.get(targetSocketId);
+            
+            if (!remoteStream) {
+                // First track for this peer - create new MediaStream
+                remoteStream = new MediaStream();
+                remoteStreamsRef.current.set(targetSocketId, remoteStream);
+                console.log('Created new MediaStream for peer', targetSocketId);
             }
-
-            setRemoteStream(stream);
-            if (remoteVideoRef.current) {
-                remoteVideoRef.current.srcObject = stream;
+            
+            // Add the track to the stream (audio track will be added first, then video)
+            if (remoteStream.getTracks().every(t => t.kind !== event.track.kind)) {
+                // Only add if we don't already have this track kind
+                remoteStream.addTrack(event.track);
+                console.log('Added', event.track.kind, 'track to stream for peer', targetSocketId);
             }
+            
+            // Update the remote stream state (for effect dependency)
+            setRemoteStream(remoteStream);
+            
+            // Attach to video element
+            if (remoteVideoRef.current && !remoteVideoRef.current.srcObject) {
+                console.log('Attaching remote stream to video element');
+                remoteVideoRef.current.srcObject = remoteStream;
+            }
+            
+            setIsCallActive(true);
+            setPeerStatus('connected');
         };
 
         // Store in map
@@ -202,14 +221,18 @@ const VideoCall = ({
     // Effect to ensure remote video element has the right source and is playing
     useEffect(() => {
         if (remoteVideoRef.current && remoteStream) {
+            console.log('remoteStream tracks:', remoteStream.getTracks().map(t => t.kind));
             if (remoteVideoRef.current.srcObject !== remoteStream) {
                 console.log('Attaching remote stream to video element');
                 remoteVideoRef.current.srcObject = remoteStream;
             }
             // Explicitly call play to handle potential autoplay blockers
-            remoteVideoRef.current.play().catch(err => {
-                console.warn('Auto-play failed for remote video, may need user interaction:', err);
-            });
+            const playPromise = remoteVideoRef.current.play();
+            if (playPromise !== undefined) {
+                playPromise.catch(err => {
+                    console.warn('Auto-play failed for remote video, may need user interaction:', err);
+                });
+            }
         }
     }, [remoteStream]);
 
@@ -483,12 +506,17 @@ const VideoCall = ({
                 localStreamRef.current = null;
             }
 
-            // Close all peer connections
+            // Close all peer connections and clear remote streams
             if (peerConnectionsRef.current && peerConnectionsRef.current.size > 0) {
                 for (const [id, pc] of peerConnectionsRef.current.entries()) {
                     try { pc.close(); } catch (e) { /* ignore */ }
                 }
                 peerConnectionsRef.current.clear();
+            }
+
+            // Clear remote streams
+            if (remoteStreamsRef.current) {
+                remoteStreamsRef.current.clear();
             }
 
             if (socketRef.current) {
@@ -687,8 +715,9 @@ const VideoCall = ({
                 />
 
                 {/* Peer Status Overlay */}
-                {peerStatus !== 'connected' && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-gray-800 bg-opacity-75">
+                {/* Peer Status Overlay - Only show if not connected AND no remote stream */}
+                {(peerStatus !== 'connected' && !remoteStream) && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-gray-800 bg-opacity-75 z-10">
                         <div className="text-center text-white">
                             <div className="w-24 h-24 rounded-full bg-gray-700 mx-auto mb-4 flex items-center justify-center">
                                 <span className="text-3xl">
@@ -702,6 +731,7 @@ const VideoCall = ({
                                 {peerStatus === 'disconnected' && 'Participant disconnected'}
                                 {peerStatus === 'left' && 'Participant left the call'}
                                 {peerStatus === 'failed' && 'Connection failed'}
+                                {(peerStatus === 'waiting-for-offer' || peerStatus === 'creating-offer') && 'Negotiating connection...'}
                             </p>
                         </div>
                     </div>

@@ -261,6 +261,45 @@ const setupSocketIO = (server) => {
                 }
             }
         })
+
+        // ================= MARKETPLACE EVENTS =================
+
+        // Tutors join a room based on their subject for targeted notifications
+        socket.on('join-subject-room', (subject) => {
+            const roomName = `subject:${subject.toLowerCase().replace(/\s+/g, '-')}`
+            socket.join(roomName)
+            console.log(`Socket ${socket.id} joined subject room: ${roomName}`)
+        })
+
+        // When a student posts a question
+        socket.on('new-question-posted', ({ subject, questionId, studentName }) => {
+            const roomName = `subject:${subject.toLowerCase().replace(/\s+/g, '-')}`
+            console.log(`New question posted in ${subject} by ${studentName}. Notifying room: ${roomName}`);
+
+            // Broadcast only to tutors in this specific subject room
+            io.to(roomName).emit('notify-new-question', {
+                subject,
+                questionId,
+                studentName,
+                message: `New question in ${subject} from ${studentName}`
+            });
+        });
+
+        // When a mentor submits a bid
+        socket.on('new-bid-submitted', ({ studentId, questionId, mentorName, price }) => {
+            console.log(`New bid from ${mentorName} for question ${questionId}`);
+            // Notify the specific student
+            // This requires mapping userIds to socket IDs, which is partially implemented for rooms
+            // For now, we'll emit and let the frontend filter, or implement a global user socket map
+            socket.broadcast.emit('notify-new-bid', {
+                studentId,
+                questionId,
+                mentorName,
+                price,
+                message: `${mentorName} has bidded ${price} on your question.`
+            });
+        });
+
     })
 
     // Helper function to handle user leaving

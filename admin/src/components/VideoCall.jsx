@@ -22,6 +22,7 @@ const VideoCall = ({
     const localVideoRef = useRef(null);
     const remoteVideoRef = useRef(null);
     const peerConnectionRef = useRef(null);
+    const remoteStreamRef = useRef(null); // Track the remote stream
     const socketRef = useRef(null);
     const localStreamRef = useRef(null);
     const reconnectTimeoutRef = useRef(null);
@@ -153,9 +154,37 @@ const VideoCall = ({
 
         // Handle remote stream
         pc.ontrack = (event) => {
-            console.log('Received remote track');
-            if (remoteVideoRef.current && event.streams[0]) {
-                remoteVideoRef.current.srcObject = event.streams[0];
+            console.log('Received remote track:', event.track.kind);
+            
+            // Get or create the remote stream
+            let remoteStream = remoteStreamRef.current;
+            
+            if (!remoteStream) {
+                // First track - create new MediaStream
+                remoteStream = new MediaStream();
+                remoteStreamRef.current = remoteStream;
+                console.log('Created new MediaStream for remote peer');
+            }
+            
+            // Add the track to the stream if we don't already have this track kind
+            if (remoteStream.getTracks().every(t => t.kind !== event.track.kind)) {
+                remoteStream.addTrack(event.track);
+                console.log('Added', event.track.kind, 'track to remote stream');
+            }
+            
+            // Attach to video element
+            if (remoteVideoRef.current) {
+                if (remoteVideoRef.current.srcObject !== remoteStream) {
+                    console.log('Attaching remote stream to video element');
+                    remoteVideoRef.current.srcObject = remoteStream;
+                    // Explicitly play
+                    const playPromise = remoteVideoRef.current.play();
+                    if (playPromise !== undefined) {
+                        playPromise.catch(err => {
+                            console.warn('Auto-play failed for remote video:', err);
+                        });
+                    }
+                }
             }
         };
 
@@ -438,6 +467,10 @@ const VideoCall = ({
             if (peerConnectionRef.current) {
                 peerConnectionRef.current.close();
                 peerConnectionRef.current = null;
+            }
+            
+            if (remoteStreamRef.current) {
+                remoteStreamRef.current = null;
             }
             
             if (socketRef.current) {

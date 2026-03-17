@@ -6,9 +6,7 @@ import { toast } from "react-toastify"
 
 const Login = () => {
   const { navigate, token, setToken, backendUrl } = useContext(AppContext);
-  const [loginType, setLoginType] = useState("User"); // User, Tutor, Admin
-  const [currState, setCurrState] = useState("Login"); // Login or Sign Up (only for User)
-  const [tutorMode, setTutorMode] = useState("apply"); // apply or login (for Tutor)
+  const [currState, setCurrState] = useState("Login"); // Login, Sign Up, Apply Tutor
 
   // Common fields
   const [name, setName] = useState("");
@@ -32,93 +30,103 @@ const Login = () => {
   const onSubmitHandler = async (event) => {
     event.preventDefault();
     try {
-      if (loginType === "User") {
-        // User Login/Sign Up
-        if (currState === "Sign Up") {
-          const { data } = await axios.post(backendUrl + '/api/user/register', { name, email, password })
-          if (data.success) {
-            setCurrState("Login")
-            toast.success("Account created successfully! Please login.")
-          } else {
-            toast.error(data.message)
-          }
-        } else {
-          const { data } = await axios.post(backendUrl + '/api/user/login', { email, password })
-          if (data.success) {
-            localStorage.setItem("token", data.token)
-            setToken(data.token)
-            toast.success("Login successful!")
-          } else {
-            toast.error(data.message)
-          }
-        }
-      } else if (loginType === "Tutor") {
-        if (tutorMode === "apply") {
-          // Tutor Application with file uploads
-          if (!image) {
-            toast.error("Please upload your profile photo")
-            return
-          }
-          if (!document) {
-            toast.error("Please upload your certificate/document")
-            return
-          }
-
-          const formData = new FormData()
-          formData.append('name', name)
-          formData.append('email', email)
-          formData.append('phone', phone)
-          formData.append('age', age)
-          formData.append('educationStatus', educationStatus)
-          formData.append('experience', experience)
-          formData.append('subject', subject)
-          formData.append('about', about)
-          formData.append('image', image)
-          formData.append('document', document)
-
-          const { data } = await axios.post(backendUrl + '/api/tutor/apply', formData, {
-            headers: { 'Content-Type': 'multipart/form-data' }
-          })
-
-          if (data.success) {
-            toast.success(data.message)
-            // Reset form
-            setName("")
-            setEmail("")
-            setPhone("")
-            setAge("")
-            setEducationStatus("")
-            setExperience("")
-            setSubject("")
-            setAbout("")
-            setImage(null)
-            setDocument(null)
-            setImagePreview(null)
-            setDocumentPreview(null)
-          } else {
-            toast.error(data.message)
-          }
-        } else {
-          // Tutor Login (for approved tutors)
-          const { data } = await axios.post(backendUrl + '/api/tutor/login', { email, password })
-          if (data.success) {
-            toast.success("Tutor login successful!")
-            // Pass token via URL since localStorage doesn't share between origins
-            window.location.href = `${adminUrl}/tutor-dashboard?tToken=${data.token}`
-          } else {
-            toast.error(data.message)
-          }
-        }
-      } else if (loginType === "Admin") {
-        // Admin Login
-        const { data } = await axios.post(backendUrl + '/api/admin/login', { email, password })
+      if (currState === "Sign Up") {
+        const { data } = await axios.post(backendUrl + '/api/user/register', { name, email, password })
         if (data.success) {
-          toast.success("Admin login successful!")
-          // Pass token via URL since localStorage doesn't share between origins
-          window.location.href = `${adminUrl}/admin-dashboard?aToken=${data.token}`
+          setCurrState("Login")
+          toast.success("Account created successfully! Please login.")
         } else {
           toast.error(data.message)
         }
+      } else if (currState === "Apply Tutor") {
+        // Tutor Application with file uploads
+        if (!image) {
+          toast.error("Please upload your profile photo")
+          return
+        }
+        if (!document) {
+          toast.error("Please upload your certificate/document")
+          return
+        }
+
+        const formData = new FormData()
+        formData.append('name', name)
+        formData.append('email', email)
+        formData.append('phone', phone)
+        formData.append('age', age)
+        formData.append('educationStatus', educationStatus)
+        formData.append('experience', experience)
+        formData.append('subject', subject)
+        formData.append('about', about)
+        formData.append('image', image)
+        formData.append('document', document)
+
+        const { data } = await axios.post(backendUrl + '/api/tutor/apply', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        })
+
+        if (data.success) {
+          toast.success(data.message)
+          // Reset form
+          setName("")
+          setEmail("")
+          setPhone("")
+          setAge("")
+          setEducationStatus("")
+          setExperience("")
+          setSubject("")
+          setAbout("")
+          setImage(null)
+          setDocument(null)
+          setImagePreview(null)
+          setDocumentPreview(null)
+          setCurrState("Login")
+        } else {
+          toast.error(data.message)
+        }
+      } else {
+        // Unified Login flow
+        // 1. Check Admin
+        try {
+          const adminData = await axios.post(backendUrl + '/api/admin/login', { email, password })
+          if (adminData.data.success) {
+            toast.success("Admin login successful!")
+            window.location.href = `${adminUrl}/admin-dashboard?aToken=${adminData.data.token}`
+            return
+          }
+        } catch (error) {
+           // Ignore to check next role
+           console.log("Admin check failed", error)
+        }
+        
+        // 2. Check Student
+        try {
+          const studentData = await axios.post(backendUrl + '/api/user/login', { email, password })
+          if (studentData.data.success) {
+            localStorage.setItem("token", studentData.data.token)
+            setToken(studentData.data.token)
+            toast.success("Student login successful!")
+            return
+          }
+        } catch (error) {
+           // Ignore to check next role
+           console.log("Student check failed", error)
+        }
+        
+        // 3. Check Tutor
+        try {
+          const tutorData = await axios.post(backendUrl + '/api/tutor/login', { email, password })
+          if (tutorData.data.success) {
+            toast.success("Tutor login successful!")
+            window.location.href = `${adminUrl}/tutor-dashboard?tToken=${tutorData.data.token}`
+            return
+          }
+        } catch (error) {
+           // Ignore
+           console.log("Tutor check failed", error)
+        }
+        
+        toast.error("Invalid Credentials. Please check your email and password.")
       }
     } catch (error) {
       console.log(error)
@@ -148,7 +156,7 @@ const Login = () => {
     }
   }, [token])
 
-  // Reset form when switching login types
+  // Reset form when switching states
   useEffect(() => {
     setEmail("")
     setPassword("")
@@ -163,13 +171,7 @@ const Login = () => {
     setDocument(null)
     setImagePreview(null)
     setDocumentPreview(null)
-    if (loginType !== "User") {
-      setCurrState("Login")
-    }
-    if (loginType === "Tutor") {
-      setTutorMode("apply")
-    }
-  }, [loginType])
+  }, [currState])
 
   return (
     <section className="absolute top-0 left-0 h-full w-full z-50 bg-white overflow-y-auto">
@@ -189,112 +191,37 @@ const Login = () => {
             onSubmit={onSubmitHandler}
             className="flex flex-col items-center w-[90%] sm:max-w-md m-auto gap-y-4 text-gray-800"
           >
-            {/* Login Type Selector */}
-            <div className="w-full mb-2">
-              <div className="flex rounded-lg overflow-hidden border border-gray-300">
-                <button
-                  type="button"
-                  onClick={() => setLoginType("User")}
-                  className={`flex-1 py-2 px-4 text-sm font-medium transition ${loginType === "User"
-                      ? "bg-[#4f47e6] text-white"
-                      : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                    }`}
-                >
-                  User
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setLoginType("Tutor")}
-                  className={`flex-1 py-2 px-4 text-sm font-medium transition border-l border-r border-gray-300 ${loginType === "Tutor"
-                      ? "bg-[#4f47e6] text-white"
-                      : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                    }`}
-                >
-                  Tutor
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setLoginType("Admin")}
-                  className={`flex-1 py-2 px-4 text-sm font-medium transition ${loginType === "Admin"
-                      ? "bg-[#4f47e6] text-white"
-                      : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                    }`}
-                >
-                  Admin
-                </button>
-              </div>
-            </div>
-
-            {/* Tutor Mode Selector (Apply/Login) */}
-            {loginType === "Tutor" && (
-              <div className="w-full mb-2">
-                <div className="flex rounded-lg overflow-hidden border border-gray-300">
-                  <button
-                    type="button"
-                    onClick={() => setTutorMode("apply")}
-                    className={`flex-1 py-2 px-4 text-sm font-medium transition ${tutorMode === "apply"
-                        ? "bg-green-600 text-white"
-                        : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                      }`}
-                  >
-                    Apply as Tutor
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setTutorMode("login")}
-                    className={`flex-1 py-2 px-4 text-sm font-medium transition ${tutorMode === "login"
-                        ? "bg-green-600 text-white"
-                        : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                      }`}
-                  >
-                    Tutor Login
-                  </button>
-                </div>
-              </div>
-            )}
-
             <div className="w-full mb-2">
               <h3 className="text-3xl font-bold text-gray-900">
-                {loginType === "User"
-                  ? currState
-                  : loginType === "Tutor"
-                    ? (tutorMode === "apply" ? "Tutor Application" : "Tutor Login")
-                    : "Admin Login"}
+                {currState === "Apply Tutor" ? "Tutor Application" : currState}
               </h3>
               <p className="text-gray-500 text-sm mt-1">
-                {loginType === "User" && currState === "Sign Up"
-                  ? "Create your account to get started"
-                  : loginType === "Tutor" && tutorMode === "apply"
-                    ? "Fill out the form to apply as a tutor"
-                    : loginType === "Tutor" && tutorMode === "login"
-                      ? "Login with your approved tutor credentials"
-                      : loginType === "Admin"
-                        ? "Admin access only"
-                        : "Welcome back! Please enter your details"}
+                {currState === "Sign Up" ? "Create your account to get started" :
+                 currState === "Apply Tutor" ? "Fill out the form to apply as a tutor" :
+                 "Welcome back! Please enter your details"}
               </p>
             </div>
 
-            {/* USER FORM */}
-            {loginType === "User" && (
+            {/* USER SIGN UP FORM */}
+            {currState === "Sign Up" && (
               <>
-                {currState === "Sign Up" && (
-                  <div className="w-full">
-                    <label htmlFor="name" className="medium-14">Name</label>
-                    <input
-                      onChange={(e) => setName(e.target.value)}
-                      value={name}
-                      type="text"
-                      placeholder="Enter your name"
-                      className="w-full px-3 py-2 ring-1 ring-slate-900/10 bg-white mt-1 text-gray-800 placeholder:text-gray-500 rounded-md focus:ring-2 focus:ring-purple-500"
-                    />
-                  </div>
-                )}
+                <div className="w-full">
+                  <label htmlFor="name" className="medium-14">Name</label>
+                  <input
+                    onChange={(e) => setName(e.target.value)}
+                    value={name}
+                    type="text"
+                    placeholder="Enter your name"
+                    className="w-full px-3 py-2 ring-1 ring-slate-900/10 bg-white mt-1 text-gray-800 placeholder:text-gray-500 rounded-md focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
                 <div className="w-full">
                   <label htmlFor="email" className="medium-14">Email</label>
                   <input
                     onChange={(e) => setEmail(e.target.value)}
                     value={email}
                     type="email"
+                    autoComplete="email"
                     placeholder="Enter your email"
                     className="w-full px-3 py-2 ring-1 ring-slate-900/10 bg-white mt-1 text-gray-800 placeholder:text-gray-500 rounded-md focus:ring-2 focus:ring-purple-500"
                   />
@@ -305,6 +232,35 @@ const Login = () => {
                     onChange={(e) => setPassword(e.target.value)}
                     value={password}
                     type="password"
+                    autoComplete="new-password"
+                    placeholder="Enter your password"
+                    className="w-full px-3 py-2 ring-1 ring-slate-900/10 bg-white mt-1 text-gray-800 placeholder:text-gray-500 rounded-md focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
+              </>
+            )}
+
+            {/* LOGIN FORM (Shared for all roles) */}
+            {currState === "Login" && (
+              <>
+                <div className="w-full">
+                  <label htmlFor="email" className="medium-14">Email</label>
+                  <input
+                    onChange={(e) => setEmail(e.target.value)}
+                    value={email}
+                    type="email"
+                    autoComplete="email"
+                    placeholder="Enter your email"
+                    className="w-full px-3 py-2 ring-1 ring-slate-900/10 bg-white mt-1 text-gray-800 placeholder:text-gray-500 rounded-md focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
+                <div className="w-full">
+                  <label htmlFor="password" className="medium-14">Password</label>
+                  <input
+                    onChange={(e) => setPassword(e.target.value)}
+                    value={password}
+                    type="password"
+                    autoComplete="current-password"
                     placeholder="Enter your password"
                     className="w-full px-3 py-2 ring-1 ring-slate-900/10 bg-white mt-1 text-gray-800 placeholder:text-gray-500 rounded-md focus:ring-2 focus:ring-purple-500"
                   />
@@ -313,9 +269,9 @@ const Login = () => {
             )}
 
             {/* TUTOR APPLICATION FORM */}
-            {loginType === "Tutor" && tutorMode === "apply" && (
+            {currState === "Apply Tutor" && (
               <>
-                <div className="w-full">
+                 <div className="w-full">
                   <label className="medium-14">Full Name</label>
                   <input
                     onChange={(e) => setName(e.target.value)}
@@ -332,6 +288,7 @@ const Login = () => {
                     onChange={(e) => setEmail(e.target.value)}
                     value={email}
                     type="email"
+                    autoComplete="email"
                     placeholder="Enter your email"
                     required
                     className="w-full px-3 py-2 ring-1 ring-slate-900/10 bg-white mt-1 text-gray-800 placeholder:text-gray-500 rounded-md focus:ring-2 focus:ring-purple-500"
@@ -509,114 +466,50 @@ const Login = () => {
               </>
             )}
 
-            {/* TUTOR LOGIN FORM */}
-            {loginType === "Tutor" && tutorMode === "login" && (
-              <>
-                <div className="w-full">
-                  <label className="medium-14">Email</label>
-                  <input
-                    onChange={(e) => setEmail(e.target.value)}
-                    value={email}
-                    type="email"
-                    placeholder="Enter your email"
-                    className="w-full px-3 py-2 ring-1 ring-slate-900/10 bg-white mt-1 text-gray-800 placeholder:text-gray-500 rounded-md focus:ring-2 focus:ring-purple-500"
-                  />
-                </div>
-                <div className="w-full">
-                  <label className="medium-14">Password</label>
-                  <input
-                    onChange={(e) => setPassword(e.target.value)}
-                    value={password}
-                    type="password"
-                    placeholder="Enter your password"
-                    className="w-full px-3 py-2 ring-1 ring-slate-900/10 bg-white mt-1 text-gray-800 placeholder:text-gray-500 rounded-md focus:ring-2 focus:ring-purple-500"
-                  />
-                </div>
-              </>
-            )}
-
-            {/* ADMIN LOGIN FORM */}
-            {loginType === "Admin" && (
-              <>
-                <div className="w-full">
-                  <label className="medium-14">Email</label>
-                  <input
-                    onChange={(e) => setEmail(e.target.value)}
-                    value={email}
-                    type="email"
-                    placeholder="Enter admin email"
-                    className="w-full px-3 py-2 ring-1 ring-slate-900/10 bg-white mt-1 text-gray-800 placeholder:text-gray-500 rounded-md focus:ring-2 focus:ring-purple-500"
-                  />
-                </div>
-                <div className="w-full">
-                  <label className="medium-14">Password</label>
-                  <input
-                    onChange={(e) => setPassword(e.target.value)}
-                    value={password}
-                    type="password"
-                    placeholder="Enter admin password"
-                    className="w-full px-3 py-2 ring-1 ring-slate-900/10 bg-white mt-1 text-gray-800 placeholder:text-gray-500 rounded-md focus:ring-2 focus:ring-purple-500"
-                  />
-                </div>
-              </>
-            )}
-
             {/* Submit Button */}
             <button
               type="submit"
               className="w-full mt-4 py-2 rounded-md text-white font-semibold hover:opacity-90 transition"
-              style={{ backgroundColor: loginType === "Tutor" && tutorMode === "apply" ? '#16a34a' : '#4f47e6' }}
+              style={{ backgroundColor: currState === "Apply Tutor" ? '#16a34a' : '#4f47e6' }}
             >
-              {loginType === "User" && currState === "Sign Up"
+              {currState === "Sign Up"
                 ? "Sign Up"
-                : loginType === "Tutor" && tutorMode === "apply"
+                : currState === "Apply Tutor"
                   ? "Submit Application"
                   : "Login"}
             </button>
 
-            {/* Switch between Login/Sign Up - Only for User type */}
-            {loginType === "User" && (
-              <div className="w-full flex flex-col gap-y-3 medium-14">
+            {/* Switch between States */}
+            <div className="w-full flex flex-col gap-y-3 medium-14 mt-4 text-center">
                 {currState === "Login" ? (
-                  <div className="underline">
-                    Don't have an account?{" "}
-                    <span
-                      onClick={() => setCurrState("Sign Up")}
-                      className="cursor-pointer font-semibold"
-                      style={{ color: '#4f47e6' }}
-                    >
-                      Create Account
-                    </span>
-                  </div>
+                  <>
+                    <div className="text-gray-500">
+                      Don't have an account?{" "}
+                      <span onClick={() => setCurrState("Sign Up")} className="cursor-pointer font-semibold" style={{ color: '#4f47e6' }}>
+                        Create Student Account
+                      </span>
+                    </div>
+                    <div className="text-gray-500">
+                      Want to teach?{" "}
+                      <span onClick={() => setCurrState("Apply Tutor")} className="cursor-pointer font-semibold" style={{ color: '#16a34a' }}>
+                        Apply as Tutor
+                      </span>
+                    </div>
+                  </>
                 ) : (
-                  <div className="underline">
+                  <div className="text-gray-500">
                     Already have an account?{" "}
-                    <span
-                      onClick={() => setCurrState("Login")}
-                      className="cursor-pointer font-semibold"
-                      style={{ color: '#4f47e6' }}
-                    >
+                    <span onClick={() => setCurrState("Login")} className="cursor-pointer font-semibold" style={{ color: '#4f47e6' }}>
                       Login
                     </span>
                   </div>
                 )}
-              </div>
-            )}
+            </div>
 
-            {/* Info text for Tutor/Admin */}
-            {loginType === "Tutor" && tutorMode === "apply" && (
-              <p className="text-sm text-gray-500 text-center">
+            {/* Info text for Tutor */}
+            {currState === "Apply Tutor" && (
+              <p className="text-sm text-gray-500 text-center mt-2">
                 Your application will be reviewed by admin. Once approved, you'll receive login credentials.
-              </p>
-            )}
-            {loginType === "Tutor" && tutorMode === "login" && (
-              <p className="text-sm text-gray-500 text-center">
-                Only approved tutors can login. Apply first if you haven't been approved yet.
-              </p>
-            )}
-            {loginType === "Admin" && (
-              <p className="text-sm text-gray-500 text-center">
-                This login is restricted to administrators only.
               </p>
             )}
 

@@ -107,6 +107,16 @@ const Header = () => {
                   </li>
                   <li
                     onClick={() => {
+                      navigate("/my-question-bids");
+                      setDropdownOpen(false);
+                    }}
+                    className="flex justify-between items-center px-4 py-2 hover:bg-teal-50 cursor-pointer transition"
+                  >
+                    <span className="font-medium">My Bids</span>
+                    <TbArrowNarrowRight className="text-gray-400" />
+                  </li>
+                  <li
+                    onClick={() => {
                       logout();
                       setDropdownOpen(false);
                     }}

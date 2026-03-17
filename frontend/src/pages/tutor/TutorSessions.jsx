@@ -99,15 +99,13 @@ const TutorSessions = () => {
                 <div className="flex gap-2">
                   {!item.cancelled && !item.isCompleted && (
                     <>
-                      {item.payment && (
-                        <button
-                          onClick={() => navigate(`/tutor-video-room/${item._id}`)}
-                          className="p-2 text-blue-500 hover:bg-blue-100 rounded-full transition-colors flex items-center gap-1"
-                          title="Join Video Session"
-                        >
-                          <FaVideo className="h-5 w-5" />
-                        </button>
-                      )}
+                      <button
+                        onClick={() => navigate(`/tutor-video-room/${item._id}`)}
+                        className="p-2 text-blue-500 hover:bg-blue-100 rounded-full transition-colors flex items-center gap-1"
+                        title="Join Video Session"
+                      >
+                        <FaVideo className="h-5 w-5" />
+                      </button>
                       <button
                         onClick={() => cancelSession(item._id)}
                         className="p-2 text-red-500 hover:bg-red-100 rounded-full transition-colors"

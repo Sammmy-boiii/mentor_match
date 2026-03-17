@@ -148,6 +148,19 @@ const Sidebar = () => {
               <FaUser className="text-lg" />
               <span>Profile</span>
             </NavLink>
+
+            <NavLink
+              to="/tutor-marketplace"
+              className={({ isActive }) =>
+                `flex items-center gap-3 px-4 py-3 mb-2 rounded-lg transition-all ${isActive
+                  ? "bg-[#4f47e6] shadow-md"
+                  : "hover:bg-[#4f47e6]"
+                }`
+              }
+            >
+              <FaClipboardList className="text-lg" />
+              <span>Marketplace</span>
+            </NavLink>
           </nav>
         )}
 

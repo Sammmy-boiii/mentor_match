@@ -2,10 +2,13 @@ import validator from "validator"
 import bcrypt from "bcrypt"
 import jwt from "jsonwebtoken"
 import crypto from "crypto"
+
 import userModel from "../models/userModel.js"
 import tutorModel from "../models/tutorModel.js"
 import sessionModel from "../models/sessionModel.js"
 import { v2 as cloudinary } from "cloudinary"
+import axios from "axios"
+import paymentModel from "../models/paymentModel.js"
 
 
 // ================= REGISTER USER =================
@@ -222,15 +225,124 @@ const cancelSession = async (req, res) => {
 }
 
 // ================= ESEWA PAYMENT =================
-// Generate HMAC SHA256 signature for eSewa
-const generateEsewaSignature = (message, secret) => {
-    const hmac = crypto.createHmac('sha256', secret)
-    hmac.update(message)
-    return hmac.digest('base64')
-}
 
 // Initiate eSewa Payment
-const paymentEsewa = async (req, res) => {
+const initiateEsewa = async (req, res) => {
+    try {
+        const userId = req.userId
+        const { sessionId } = req.body
+
+        const sessionData = await sessionModel.findById(sessionId)
+        if (!sessionData || sessionData.cancelled) {
+            return res.json({ success: false, message: "Session not found or cancelled" })
+        }
+
+        if (sessionData.userId.toString() !== userId.toString()) {
+            return res.json({ success: false, message: "Unauthorized access" })
+        }
+
+        if (sessionData.payment) {
+            return res.json({ success: false, message: "Payment already completed" })
+        }
+
+        const amount = sessionData.amount
+        const transactionUuid = `${sessionId}-${Date.now()}`
+        const productCode = process.env.ESEWA_PRODUCT_CODE || "EPAYTEST"
+        const secretKey = process.env.ESEWA_SECRET_KEY || "8gBm/:&EnhH.1/q"
+
+        // eSewa v2 HMAC-SHA256 signature
+        // signed fields: total_amount,transaction_uuid,product_code
+        const signedFieldNames = "total_amount,transaction_uuid,product_code"
+        const message = `total_amount=${amount},transaction_uuid=${transactionUuid},product_code=${productCode}`
+        const signature = crypto
+            .createHmac("sha256", secretKey)
+            .update(message)
+            .digest("base64")
+
+        res.json({
+            success: true,
+            esewaData: {
+                amount: amount,
+                tax_amount: 0,
+                total_amount: amount,
+                transaction_uuid: transactionUuid,
+                product_code: productCode,
+                product_service_charge: 0,
+                product_delivery_charge: 0,
+                success_url: `${process.env.FRONTEND_URL}/my-sessions`,
+                failure_url: `${process.env.FRONTEND_URL}/my-sessions`,
+                signed_field_names: signedFieldNames,
+                signature: signature,
+            },
+            gatewayUrl: process.env.ESEWA_GATEWAY_URL || "https://rc-epay.esewa.com.np/api/epay/main/v2/form"
+        })
+
+    } catch (error) {
+        console.log("eSewa Initiate Error:", error.message)
+        res.json({ success: false, message: error.message })
+    }
+}
+// Verify eSewa Payment (called after redirect back from eSewa)
+const verifyEsewa = async (req, res) => {
+    try {
+        const { data } = req.body  // base64-encoded JSON sent from frontend after eSewa redirect
+
+        if (!data) {
+            return res.json({ success: false, message: "No payment data received" })
+        }
+
+        // Decode eSewa response
+        const decoded = JSON.parse(Buffer.from(data, 'base64').toString('utf-8'))
+        const { transaction_code, status, transaction_uuid, signed_field_names, signature } = decoded
+
+        if (status !== 'COMPLETE') {
+            return res.json({ success: false, message: `Payment not completed. Status: ${status}` })
+        }
+
+        // Verify HMAC-SHA256 signature from eSewa
+        const secretKey = process.env.ESEWA_SECRET_KEY || "8gBm/:&EnhH.1/q"
+        const fieldsToSign = signed_field_names.split(',').map(f => `${f}=${decoded[f]}`).join(',')
+        const expectedSignature = crypto
+            .createHmac('sha256', secretKey)
+            .update(fieldsToSign)
+            .digest('base64')
+
+        if (expectedSignature !== signature) {
+            return res.json({ success: false, message: "Signature verification failed" })
+        }
+
+        // Extract sessionId — transaction_uuid format is `${sessionId}-${Date.now()}`
+        // MongoDB ObjectId is 24 hex chars, so take first 24 characters
+        const extractedSessionId = transaction_uuid.substring(0, 24)
+
+        const sessionData = await sessionModel.findById(extractedSessionId)
+        if (!sessionData) {
+            return res.json({ success: false, message: "Session not found" })
+        }
+
+        if (sessionData.payment) {
+            return res.json({ success: true, message: "Payment already recorded" })
+        }
+
+        // Mark session as paid
+        await sessionModel.findByIdAndUpdate(extractedSessionId, {
+            payment: true,
+            paymentMethod: 'esewa',
+            paymentId: transaction_code,
+        })
+
+        res.json({ success: true, message: "Payment verified successfully" })
+
+    } catch (error) {
+        console.log("eSewa Verify Error:", error.message)
+        res.json({ success: false, message: error.message })
+    }
+}
+
+// ================= KHALTI PAYMENT =================
+
+// Initiate Khalti Payment
+const initiateKhalti = async (req, res) => {
     try {
         const userId = req.userId
         const { sessionId } = req.body
@@ -248,120 +360,106 @@ const paymentEsewa = async (req, res) => {
             return res.json({ success: false, message: "Payment already completed" })
         }
 
-        const amount = sessionData.amount
-        const taxAmount = 0
-        const totalAmount = amount + taxAmount
-        const transactionUuid = `${sessionId}-${Date.now()}`
-
-        // eSewa Sandbox/Test credentials
-        const productCode = process.env.ESEWA_MERCHANT_CODE || "EPAYTEST"
-        const secretKey = process.env.ESEWA_SECRET_KEY || "8gBm/:&EnhH.1/q("
-
-        // Create signature message - exact format required by eSewa
-        const signatureMessage = `total_amount=${totalAmount.toFixed(1)},transaction_uuid=${transactionUuid},product_code=${productCode}`
-        const signature = generateEsewaSignature(signatureMessage, secretKey)
-
-        // Store transaction UUID in session for verification
-        await sessionModel.findByIdAndUpdate(sessionId, {
-            transactionId: transactionUuid
-        })
-
-        // eSewa sandbox URL
-        const esewaPaymentUrl = process.env.ESEWA_PAYMENT_URL || "https://rc-epay.esewa.com.np/api/epay/main/v2/form"
-
-        // Note: eSewa appends ?data=base64encodedresponse to success_url
-        // So we use path-based parameters to avoid query string conflicts
-        const esewaData = {
-            amount: amount.toString(),
-            tax_amount: taxAmount.toString(),
-            total_amount: totalAmount.toString(),
-            transaction_uuid: transactionUuid,
-            product_code: productCode,
-            product_service_charge: "0",
-            product_delivery_charge: "0",
-            success_url: `${process.env.FRONTEND_URL}/verify/${sessionId}/success`,
-            failure_url: `${process.env.FRONTEND_URL}/verify/${sessionId}/failure`,
-            signed_field_names: "total_amount,transaction_uuid,product_code",
-            signature: signature,
-            payment_url: esewaPaymentUrl
+        if (!sessionData.isCompleted) {
+            return res.json({ success: false, message: "Session must be completed before payment" })
         }
 
-        res.json({ success: true, esewaData })
+        // For V1 Pop-up, we don't need a server-side initiation request.
+        // We just return the necessary data for the frontend to open the pop-up.
+        const amountInPaisa = Math.round(sessionData.amount * 100)
+
+        // We can still create a pending payment record if we want to track it
+        const purchaseOrderId = `${sessionId}-${Date.now()}`
+
+        await paymentModel.create({
+            userId,
+            sessionId,
+            purchase_order_id: purchaseOrderId,
+            amount: sessionData.amount,
+            status: 'Pending'
+        })
+
+        res.json({
+            success: true,
+            amount: amountInPaisa,
+            purchase_order_id: purchaseOrderId,
+            purchase_order_name: `Session Booking - ${sessionData.slotDate}`,
+            product_identity: sessionId,
+            product_name: `MentorMatch Session`,
+            product_url: `${process.env.FRONTEND_URL}/session/${sessionId}`
+        })
 
     } catch (error) {
-        console.log(error)
+        console.log("Khalti Initiate Error:", error.message)
         res.json({ success: false, message: error.message })
     }
 }
 
-// Verify eSewa Payment
-const verifyEsewa = async (req, res) => {
+// Verify Khalti Payment (Lookup API)
+const verifyKhalti = async (req, res) => {
     try {
-        const { sessionId, data } = req.body
+        const { token, amount, sessionId } = req.body
 
-        console.log("=== eSewa Verification Request ===")
-        console.log("Session ID:", sessionId)
-        console.log("Raw data:", data)
-
-        if (!data) {
-            return res.json({ success: false, message: "No payment data received" })
+        if (!token || !amount || !sessionId) {
+            return res.json({ success: false, message: "Missing token, amount, or sessionId" })
         }
 
-        if (!sessionId) {
-            return res.json({ success: false, message: "No session ID received" })
-        }
-
-        // Decode base64 response from eSewa
-        let decodedData
-        try {
-            decodedData = JSON.parse(Buffer.from(data, 'base64').toString('utf-8'))
-            console.log("Decoded eSewa data:", decodedData)
-        } catch (decodeError) {
-            console.log("Failed to decode eSewa data:", decodeError)
-            return res.json({ success: false, message: "Invalid payment data format" })
-        }
-
-        const sessionData = await sessionModel.findById(sessionId)
-        if (!sessionData) {
-            console.log("Session not found for ID:", sessionId)
-            return res.json({ success: false, message: "Session not found" })
-        }
-
-        console.log("Session transaction ID:", sessionData.transactionId)
-        console.log("eSewa transaction UUID:", decodedData.transaction_uuid)
-        console.log("eSewa status:", decodedData.status)
-
-        // Verify the transaction - eSewa returns status as "COMPLETE" on success
-        if (decodedData.status === "COMPLETE") {
-            // Optionally verify transaction_uuid matches (may have timestamp variations)
-            const sessionIdFromUuid = decodedData.transaction_uuid?.split('-')[0]
-
-            if (sessionIdFromUuid === sessionId || decodedData.transaction_uuid === sessionData.transactionId) {
-                // Generate room ID for video call
-                sessionData.generateRoomId()
-                sessionData.payment = true
-                sessionData.paymentMethod = "esewa"
-                sessionData.paymentId = decodedData.transaction_code || decodedData.transaction_uuid
-                sessionData.transactionId = decodedData.transaction_uuid
-                await sessionData.save()
-
-                console.log("Payment verified successfully!")
-                return res.json({ success: true, message: "Payment verified successfully" })
-            } else {
-                console.log("Transaction UUID mismatch")
+        const trimmedKey = process.env.KHALTI_SECRET_KEY ? process.env.KHALTI_SECRET_KEY.trim() : "";
+        const config = {
+            headers: {
+                'Authorization': `Key ${trimmedKey}`,
+                'Content-Type': 'application/json'
             }
         }
 
-        console.log("Payment verification failed - status not COMPLETE or UUID mismatch")
-        res.json({ success: false, message: "Payment verification failed - transaction mismatch" })
+        const khaltiBaseUrl = process.env.KHALTI_BASE_URL.endsWith('/')
+            ? process.env.KHALTI_BASE_URL
+            : `${process.env.KHALTI_BASE_URL}/`;
+
+        console.log("Khalti V1 Verification - URL:", `${khaltiBaseUrl}payment/verify/`)
+
+        const payload = {
+            token: token,
+            amount: amount
+        }
+
+        const response = await axios.post(`${khaltiBaseUrl}payment/verify/`, payload, config)
+
+        if (response.data && response.data.idx) {
+            const sessionData = await sessionModel.findById(sessionId)
+            if (!sessionData) {
+                return res.json({ success: false, message: "Session not found" })
+            }
+
+            // Update payment record
+            const paymentData = await paymentModel.findOne({ sessionId, status: 'Pending' }).sort({ createdAt: -1 })
+            if (paymentData) {
+                paymentData.status = 'Completed'
+                paymentData.transaction_id = response.data.idx
+                paymentData.pidx = response.data.idx
+                await paymentData.save()
+            }
+
+            // Update session
+            sessionData.generateRoomId()
+            sessionData.payment = true
+            sessionData.paymentMethod = "khalti"
+            sessionData.paymentId = response.data.idx
+            sessionData.transactionId = response.data.idx
+            await sessionData.save()
+
+            return res.json({ success: true, message: "Payment verified successfully", data: response.data })
+        } else {
+            return res.json({ success: false, message: "Payment verification failed" })
+        }
 
     } catch (error) {
-        console.log("eSewa verification error:", error)
-        res.json({ success: false, message: error.message })
+        console.log("Khalti Verify Error:", error.response?.data || error.message)
+        const errorMessage = error.response?.data ? JSON.stringify(error.response.data) : error.message
+        res.json({ success: false, message: errorMessage })
     }
 }
 
-// ================= PAYMENT FAILURE HANDLER =================
 export {
     registerUser,
     loginUser,
@@ -370,7 +468,8 @@ export {
     bookSession,
     listSessions,
     cancelSession,
-    paymentEsewa,
+    initiateEsewa,
     verifyEsewa,
-    
+    initiateKhalti,
+    verifyKhalti
 }

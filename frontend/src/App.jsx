@@ -8,6 +8,7 @@ import Tutors from "./pages/Tutors";
 import Verify from "./pages/Verify";
 import Login from "./pages/Login";
 import VideoRoom from "./pages/VideoRoom";
+import MyQuestionBids from "./pages/MyQuestionBids";
 import { Route, Routes, useLocation } from "react-router-dom";
 import Header from "./Components/Header";
 import Footer from "./Components/Footer";
@@ -25,6 +26,7 @@ import TutorDashboard from "./pages/tutor/TutorDashboard";
 import TutorSessions from "./pages/tutor/TutorSessions";
 import TutorProfile from "./pages/tutor/TutorProfile";
 import TutorVideoRoom from "./pages/tutor/TutorVideoRoom";
+import Marketplace from "./pages/tutor/Marketplace";
 
 import Sidebar from "./Components/Sidebar";
 
@@ -56,6 +58,7 @@ export default function App() {
             <Route path='/verify/:sessionId/:status' element={<Verify />} />
             <Route path='/login' element={<Login />} />
             <Route path='/video-room/:sessionId' element={<VideoRoom />} />
+            <Route path='/my-question-bids' element={<MyQuestionBids />} />
 
             {/* Admin Routes */}
             <Route path="/admin-dashboard" element={<Dashboard />} />
@@ -68,6 +71,7 @@ export default function App() {
             <Route path="/tutor-sessions" element={<TutorSessions />} />
             <Route path="/tutor-profile" element={<TutorProfile />} />
             <Route path="/tutor-video-room/:sessionId" element={<TutorVideoRoom />} />
+            <Route path="/tutor-marketplace" element={<Marketplace />} />
           </Routes>
         </div>
       </div>

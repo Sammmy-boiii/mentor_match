@@ -12,52 +12,42 @@ const Verify = () => {
   const [verifying, setVerifying] = useState(true);
   const [status, setStatus] = useState(null);
 
-  // Get 'data' parameter from eSewa callback (eSewa appends ?data=... to success URL)
-  const data = searchParams.get("data");
+  // Khalti callback params
+  const pidx = searchParams.get("pidx");
+  const khaltiStatus = searchParams.get("status");
 
   const verifyPayment = async () => {
     try {
-      // Debug: Log all params
       console.log("Verify page params:", {
         sessionId,
-        urlStatus,
-        data,
-        allSearchParams: Object.fromEntries(searchParams.entries())
+        pidx,
+        khaltiStatus
       });
 
-      // Check if this is a failure callback
-      if (urlStatus === "failure") {
+      if (!pidx) {
         setStatus("failed");
-        toast.error("Payment was cancelled or failed");
+        toast.error("No pidx found in payment callback");
         return;
       }
 
-      // For success callback, eSewa sends 'data' parameter with base64 encoded response
-      if (urlStatus === "success" && data) {
-        // Decode and log the data for debugging
-        try {
-          const decodedData = JSON.parse(atob(data));
-          console.log("Decoded eSewa data:", decodedData);
-        } catch (e) {
-          console.log("Could not decode data:", e);
-        }
-
-        const response = await axios.post(backendUrl + "/api/user/verify-esewa", {
-          sessionId,
-          data
-        });
-
-        if (response.data.success) {
-          setStatus("success");
-          toast.success("Payment successful!");
-        } else {
-          setStatus("failed");
-          toast.error(response.data.message || "Payment verification failed");
-        }
-      } else {
-        // No data parameter on success - something went wrong
+      if (khaltiStatus === "User canceled") {
         setStatus("failed");
-        toast.error("Payment verification failed - no response data");
+        toast.error("Payment was cancelled by user");
+        return;
+      }
+
+      // Always call lookup API to verify on backend
+      const response = await axios.post(backendUrl + "/api/user/verify-khalti", {
+        sessionId,
+        pidx
+      });
+
+      if (response.data.success) {
+        setStatus("success");
+        toast.success("Payment verified successfully!");
+      } else {
+        setStatus("failed");
+        toast.error(response.data.message || "Payment verification failed");
       }
     } catch (error) {
       console.log("Verification error:", error);
