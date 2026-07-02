@@ -36,6 +36,7 @@ const VideoCall = ({
     const peerConnectionsRef = useRef(new Map()); // Map<socketId, RTCPeerConnection>
     const candidateQueueRef = useRef(new Map()); // Map<socketId, RTCIceCandidate[]>
     const remoteStreamsRef = useRef(new Map()); // Map<socketId, MediaStream> - Track remote streams per peer
+    const combinedRemoteStreamRef = useRef(new MediaStream()); // Combined stream across peers
     const socketRef = useRef(null);
     const localStreamRef = useRef(null);
     const reconnectTimeoutRef = useRef(null);
@@ -155,35 +156,57 @@ const VideoCall = ({
         };
 
         // Handle remote stream
+        // Ensure we maintain a combined remote MediaStream for all peers and attach consistently
         pc.ontrack = (event) => {
             console.log('Received remote track from', targetSocketId, ':', event.track.kind);
-            
+
             // Get or create the remote stream for this peer
             let remoteStream = remoteStreamsRef.current.get(targetSocketId);
-            
             if (!remoteStream) {
-                // First track for this peer - create new MediaStream
                 remoteStream = new MediaStream();
                 remoteStreamsRef.current.set(targetSocketId, remoteStream);
                 console.log('Created new MediaStream for peer', targetSocketId);
             }
-            
-            // Add the track to the stream (audio track will be added first, then video)
-            if (remoteStream.getTracks().every(t => t.kind !== event.track.kind)) {
-                // Only add if we don't already have this track kind
-                remoteStream.addTrack(event.track);
-                console.log('Added', event.track.kind, 'track to stream for peer', targetSocketId);
+
+            // Add the incoming track if not already present
+            if (remoteStream.getTracks().every(t => t.kind !== event.track.kind || t.id !== event.track.id)) {
+                try {
+                    remoteStream.addTrack(event.track);
+                    console.log('Added', event.track.kind, 'track to stream for peer', targetSocketId);
+                } catch (e) {
+                    console.warn('Failed to add track to peer stream:', e);
+                }
             }
-            
-            // Update the remote stream state (for effect dependency)
+
+            // Maintain a combined stream across all peers
+            if (!combinedRemoteStreamRef.current) {
+                combinedRemoteStreamRef.current = new MediaStream();
+            }
+            const combined = combinedRemoteStreamRef.current;
+
+            // Add track to combined stream if it's not already there
+            if (combined.getTracks().every(t => t.id !== event.track.id)) {
+                try {
+                    combined.addTrack(event.track);
+                } catch (e) {
+                    console.warn('Failed to add track to combined stream:', e);
+                }
+            }
+
+            // Attach combined stream to remote video element and ensure play
             setRemoteStream(remoteStream);
-            
-            // Attach to video element
-            if (remoteVideoRef.current && !remoteVideoRef.current.srcObject) {
-                console.log('Attaching remote stream to video element');
-                remoteVideoRef.current.srcObject = remoteStream;
+            if (remoteVideoRef.current) {
+                if (remoteVideoRef.current.srcObject !== combined) {
+                    remoteVideoRef.current.srcObject = combined;
+                }
+                const playPromise = remoteVideoRef.current.play();
+                if (playPromise !== undefined) {
+                    playPromise.catch(err => {
+                        console.warn('Auto-play failed for remote video, may need user interaction:', err);
+                    });
+                }
             }
-            
+
             setIsCallActive(true);
             setPeerStatus('connected');
         };

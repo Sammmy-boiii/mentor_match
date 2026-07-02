@@ -258,7 +258,15 @@ const updateTutor = async (req, res) => {
 const deleteTutor = async (req, res) => {
     try {
         const { tutorId } = req.body
+
+        const tutor = await tutorModel.findById(tutorId)
+        if (!tutor) {
+            return res.json({ success: false, message: "Tutor not found" })
+        }
+
         await tutorModel.findByIdAndDelete(tutorId)
+        await tutorLoginModel.findOneAndDelete({ email: tutor.email })
+
         res.json({ success: true, message: "Tutor deleted successfully" })
     } catch (error) {
         console.log(error)

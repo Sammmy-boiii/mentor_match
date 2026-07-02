@@ -153,6 +153,14 @@ const Session = () => {
                 </p>
               </div>
               <h5 className="text-md font-medium text-gray-600 mb-4">{tutorInfo.qualification}</h5>
+              <div className="mb-4 flex flex-wrap items-center gap-3 text-sm text-gray-700">
+                <span className="font-semibold">
+                  {tutorInfo.ratingCount > 0 ? `${tutorInfo.avgRating.toFixed(1)} ⭐` : "No ratings yet"}
+                </span>
+                {tutorInfo.ratingCount > 0 && (
+                  <span className="text-gray-500">({tutorInfo.ratingCount} review{tutorInfo.ratingCount === 1 ? "" : "s"})</span>
+                )}
+              </div>
 
               {/* Experience | Subject | Fee */}
               <div className="flex rounded-3xl text-sm font-medium max-w-2xl ring-1 ring-slate-900/10 p-5 my-4 bg-white shadow">

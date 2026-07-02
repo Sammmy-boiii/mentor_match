@@ -1,5 +1,5 @@
 import express from 'express';
-import { postQuestion, submitBid, getRankedBids, getMatchingMentors, getPriceSuggestion, getMyQuestions, getMarketplaceQuestions, acceptBid } from "../controllers/marketplaceController.js";
+import { postQuestion, submitBid, getRankedBids, getMatchingMentors, getPriceSuggestion, getMyQuestions, getMarketplaceQuestions, getTopRatedTutors, acceptBid } from "../controllers/marketplaceController.js";
 import authUser from "../middlewares/authUser.js";
 import authTutor from "../middlewares/authTutor.js";
 
@@ -11,6 +11,7 @@ marketplaceRouter.get('/ranked-bids/:questionId', getRankedBids);
 marketplaceRouter.post('/matching-mentors', getMatchingMentors);
 marketplaceRouter.post('/price-suggestion', getPriceSuggestion);
 marketplaceRouter.get('/my-questions', authUser, getMyQuestions);
+marketplaceRouter.get('/top-rated', getTopRatedTutors);
 marketplaceRouter.get('/open-questions', getMarketplaceQuestions);
 marketplaceRouter.post('/accept-bid', authUser, acceptBid);
 

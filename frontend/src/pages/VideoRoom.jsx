@@ -118,7 +118,10 @@ const VideoRoom = () => {
     // Handle call end
     const handleCallEnd = async (duration) => {
         toast.success(`Call ended. Duration: ${Math.floor(duration / 60)} minutes ${duration % 60} seconds`);
-        navigate('/my-sessions');
+        navigate('/my-sessions', {
+            state: { reviewSessionId: roomData?.sessionId },
+            replace: true
+        });
     };
 
     // Handle error

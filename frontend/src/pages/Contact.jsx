@@ -71,7 +71,7 @@ const Contact = () => {
               <h5 className="font-semibold text-gray-900 mb-2">Email</h5>
               <div className="flex items-center gap-3 text-gray-700">
                 <FaEnvelope className="text-primary text-xl" />
-                <span>support@mentormatch.com</span>
+                <span>mentormatch2026@gmail.com</span>
               </div>
             </div>
 

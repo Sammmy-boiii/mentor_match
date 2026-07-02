@@ -10,7 +10,6 @@ import { v2 as cloudinary } from "cloudinary"
 import axios from "axios"
 import paymentModel from "../models/paymentModel.js"
 
-
 // ================= REGISTER USER =================
 const registerUser = async (req, res) => {
     try {
@@ -224,9 +223,70 @@ const cancelSession = async (req, res) => {
     }
 }
 
-// ================= ESEWA PAYMENT =================
 
-// Initiate eSewa Payment
+// ================= SUBMIT REVIEW =================
+const submitReview = async (req, res) => {
+    try {
+        const userId = req.userId
+        const { sessionId, rating, comment } = req.body
+
+        if (!sessionId || !rating) {
+            return res.json({ success: false, message: "Session ID and rating are required" })
+        }
+
+        if (rating < 1 || rating > 5) {
+            return res.json({ success: false, message: "Rating must be between 1 and 5" })
+        }
+
+        const sessionData = await sessionModel.findById(sessionId)
+        if (!sessionData) {
+            return res.json({ success: false, message: "Session not found" })
+        }
+
+        if (sessionData.userId.toString() !== userId.toString()) {
+            return res.json({ success: false, message: "Unauthorized access" })
+        }
+
+        if (!sessionData.isCompleted) {
+            return res.json({ success: false, message: "Cannot review an incomplete session" })
+        }
+
+        if (sessionData.rating) {
+            return res.json({ success: false, message: "Review already submitted" })
+        }
+
+        // Save rating on the session
+        await sessionModel.findByIdAndUpdate(sessionId, { rating, comment })
+
+        // Update tutor's running average rating
+        const tutorData = await tutorModel.findById(sessionData.tutId)
+        if (tutorData) {
+            const newCount = (tutorData.ratingCount || 0) + 1
+            const newAvg = (((tutorData.avgRating || 0) * (tutorData.ratingCount || 0)) + rating) / newCount
+            await tutorModel.findByIdAndUpdate(sessionData.tutId, {
+                avgRating: Math.round(newAvg * 10) / 10,
+                ratingCount: newCount
+            })
+        }
+
+        res.json({ success: true, message: "Review submitted successfully" })
+
+    } catch (error) {
+        console.log(error)
+        res.json({ success: false, message: error.message })
+    }
+}
+
+// ================= PAYMENT FAILURE (ESEWA) =================
+const paymentFailure = async (req, res) => {
+    try {
+        res.json({ success: false, message: "Payment failed or was cancelled" })
+    } catch (error) {
+        console.log(error)
+        res.json({ success: false, message: error.message })
+    }
+}
+
 const initiateEsewa = async (req, res) => {
     try {
         const userId = req.userId
@@ -250,8 +310,7 @@ const initiateEsewa = async (req, res) => {
         const productCode = process.env.ESEWA_PRODUCT_CODE || "EPAYTEST"
         const secretKey = process.env.ESEWA_SECRET_KEY || "8gBm/:&EnhH.1/q"
 
-        // eSewa v2 HMAC-SHA256 signature
-        // signed fields: total_amount,transaction_uuid,product_code
+
         const signedFieldNames = "total_amount,transaction_uuid,product_code"
         const message = `total_amount=${amount},transaction_uuid=${transactionUuid},product_code=${productCode}`
         const signature = crypto
@@ -282,7 +341,7 @@ const initiateEsewa = async (req, res) => {
         res.json({ success: false, message: error.message })
     }
 }
-// Verify eSewa Payment (called after redirect back from eSewa)
+
 const verifyEsewa = async (req, res) => {
     try {
         const { data } = req.body  // base64-encoded JSON sent from frontend after eSewa redirect
@@ -341,18 +400,20 @@ const verifyEsewa = async (req, res) => {
 
 // ================= KHALTI PAYMENT =================
 
-// Initiate Khalti Payment
+// Initiate Khalti Payment (V2 ePay)
 const initiateKhalti = async (req, res) => {
     try {
         const userId = req.userId
         const { sessionId } = req.body
 
         const sessionData = await sessionModel.findById(sessionId)
+        const userData = await userModel.findById(userId)
+
         if (!sessionData || sessionData.cancelled) {
             return res.json({ success: false, message: "Session not found or cancelled" })
         }
 
-        if (sessionData.userId !== userId) {
+        if (sessionData.userId.toString() !== userId.toString()) {
             return res.json({ success: false, message: "Unauthorized access" })
         }
 
@@ -364,11 +425,7 @@ const initiateKhalti = async (req, res) => {
             return res.json({ success: false, message: "Session must be completed before payment" })
         }
 
-        // For V1 Pop-up, we don't need a server-side initiation request.
-        // We just return the necessary data for the frontend to open the pop-up.
         const amountInPaisa = Math.round(sessionData.amount * 100)
-
-        // We can still create a pending payment record if we want to track it
         const purchaseOrderId = `${sessionId}-${Date.now()}`
 
         await paymentModel.create({
@@ -379,29 +436,51 @@ const initiateKhalti = async (req, res) => {
             status: 'Pending'
         })
 
-        res.json({
-            success: true,
+        const trimmedKey = process.env.KHALTI_SECRET_KEY ? process.env.KHALTI_SECRET_KEY.trim() : "";
+        const config = {
+            headers: {
+                'Authorization': `Key ${trimmedKey}`,
+                'Content-Type': 'application/json'
+            }
+        }
+
+        const baseUrl = process.env.KHALTI_BASE_URL || 'https://a.khalti.com/api/v2/';
+        const khaltiBaseUrl = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
+
+        const payload = {
+            return_url: `${process.env.FRONTEND_URL}/verify/${sessionId}`,
+            website_url: process.env.FRONTEND_URL,
             amount: amountInPaisa,
             purchase_order_id: purchaseOrderId,
             purchase_order_name: `Session Booking - ${sessionData.slotDate}`,
-            product_identity: sessionId,
-            product_name: `MentorMatch Session`,
-            product_url: `${process.env.FRONTEND_URL}/session/${sessionId}`
+            customer_info: {
+                name: userData?.name || "MentorMatch User",
+                email: userData?.email || "user@mentormatch.com",
+                phone: "9800000000"
+            }
+        }
+
+        const response = await axios.post(`${khaltiBaseUrl}epayment/initiate/`, payload, config)
+
+        res.json({
+            success: true,
+            payment_url: response.data.payment_url,
+            pidx: response.data.pidx
         })
 
     } catch (error) {
-        console.log("Khalti Initiate Error:", error.message)
-        res.json({ success: false, message: error.message })
+        console.log("Khalti Initiate Error:", error.response?.data || error.message)
+        res.json({ success: false, message: error.response?.data?.message || error.message })
     }
 }
 
-// Verify Khalti Payment (Lookup API)
+// Verify Khalti Payment (V2)
 const verifyKhalti = async (req, res) => {
     try {
-        const { token, amount, sessionId } = req.body
+        const { pidx, sessionId } = req.body
 
-        if (!token || !amount || !sessionId) {
-            return res.json({ success: false, message: "Missing token, amount, or sessionId" })
+        if (!pidx || !sessionId) {
+            return res.json({ success: false, message: "Missing pidx or sessionId" })
         }
 
         const trimmedKey = process.env.KHALTI_SECRET_KEY ? process.env.KHALTI_SECRET_KEY.trim() : "";
@@ -412,31 +491,29 @@ const verifyKhalti = async (req, res) => {
             }
         }
 
-        const khaltiBaseUrl = process.env.KHALTI_BASE_URL.endsWith('/')
-            ? process.env.KHALTI_BASE_URL
-            : `${process.env.KHALTI_BASE_URL}/`;
+        const baseUrl = process.env.KHALTI_BASE_URL || 'https://a.khalti.com/api/v2/';
+        const khaltiBaseUrl = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
 
-        console.log("Khalti V1 Verification - URL:", `${khaltiBaseUrl}payment/verify/`)
+        const payload = { pidx }
 
-        const payload = {
-            token: token,
-            amount: amount
-        }
+        const response = await axios.post(`${khaltiBaseUrl}epayment/lookup/`, payload, config)
 
-        const response = await axios.post(`${khaltiBaseUrl}payment/verify/`, payload, config)
-
-        if (response.data && response.data.idx) {
+        if (response.data && response.data.status === 'Completed') {
             const sessionData = await sessionModel.findById(sessionId)
             if (!sessionData) {
                 return res.json({ success: false, message: "Session not found" })
+            }
+
+            if (sessionData.payment) {
+                return res.json({ success: true, message: "Payment already recorded" })
             }
 
             // Update payment record
             const paymentData = await paymentModel.findOne({ sessionId, status: 'Pending' }).sort({ createdAt: -1 })
             if (paymentData) {
                 paymentData.status = 'Completed'
-                paymentData.transaction_id = response.data.idx
-                paymentData.pidx = response.data.idx
+                paymentData.transaction_id = response.data.transaction_id
+                paymentData.pidx = pidx
                 await paymentData.save()
             }
 
@@ -444,13 +521,13 @@ const verifyKhalti = async (req, res) => {
             sessionData.generateRoomId()
             sessionData.payment = true
             sessionData.paymentMethod = "khalti"
-            sessionData.paymentId = response.data.idx
-            sessionData.transactionId = response.data.idx
+            sessionData.paymentId = pidx
+            sessionData.transactionId = response.data.transaction_id
             await sessionData.save()
 
             return res.json({ success: true, message: "Payment verified successfully", data: response.data })
         } else {
-            return res.json({ success: false, message: "Payment verification failed" })
+            return res.json({ success: false, message: "Payment verification failed or not completed" })
         }
 
     } catch (error) {
@@ -467,9 +544,11 @@ export {
     updateProfile,
     bookSession,
     listSessions,
+    submitReview,
     cancelSession,
     initiateEsewa,
     verifyEsewa,
+    paymentFailure,
     initiateKhalti,
     verifyKhalti
 }

@@ -7,11 +7,24 @@ export const AdminContext = createContext();
 
 const AdminContextProvider = (props) => {
 
-  const [aToken, setAToken] = useState(
+  const [aToken, setATokenState] = useState(
     localStorage.getItem('aToken') ? localStorage.getItem('aToken') : ""
   );
 
   const { backendUrl } = useContext(AppContext);
+
+  const setAToken = (value) => {
+    const nextValue = typeof value === 'function' ? value(aToken) : value;
+    setATokenState(nextValue || "");
+
+    if (nextValue) {
+      localStorage.setItem('aToken', nextValue);
+      localStorage.removeItem('token');
+      localStorage.removeItem('tToken');
+    } else {
+      localStorage.removeItem('aToken');
+    }
+  };
 
   const [tutors, setTutors] = useState([]);
   const [sessions, setSessions] = useState([]);

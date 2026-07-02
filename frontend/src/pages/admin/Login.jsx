@@ -17,12 +17,19 @@ const Login = () => {
   const { setTToken } = useContext(TutorContext)
 
 
+  const clearAuthSessions = () => {
+    localStorage.removeItem('token')
+    localStorage.removeItem('aToken')
+    localStorage.removeItem('tToken')
+  }
+
   const onSubmitHandler = async (e) => {
     try {
       e.preventDefault()
       if (currState === "Admin") {
         const { data } = await axios.post(backendUrl + '/api/admin/login', { email, password })
         if (data.success) {
+          clearAuthSessions()
           localStorage.setItem('aToken', data.token)
           setAToken(data.token)
         } else {
@@ -31,6 +38,7 @@ const Login = () => {
       } else {
         const { data } = await axios.post(backendUrl + '/api/tutor/login', { email, password })
         if (data.success) {
+          clearAuthSessions()
           localStorage.setItem('tToken', data.token)
           setTToken(data.token)
 

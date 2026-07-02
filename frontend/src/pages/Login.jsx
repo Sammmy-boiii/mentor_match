@@ -1,12 +1,20 @@
 import React, { useContext, useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { AppContext } from "../context/AppContext";
+import { AdminContext } from "../context/AdminContext";
+import { TutorContext } from "../context/TutorContext";
 import loginImg from "../assets/login.png"; // make sure the path is correct
 import axios from "axios";
 import { toast } from "react-toastify"
 
 const Login = () => {
+  const location = useLocation();
   const { navigate, token, setToken, backendUrl } = useContext(AppContext);
-  const [currState, setCurrState] = useState("Login"); // Login, Sign Up, Apply Tutor
+  const { setAToken } = useContext(AdminContext);
+  const { setTToken } = useContext(TutorContext);
+  const [currState, setCurrState] = useState(
+    location.state?.tab === "Apply Tutor" ? "Apply Tutor" : "Login"
+  ); // Login, Sign Up, Apply Tutor
 
   // Common fields
   const [name, setName] = useState("");
@@ -26,6 +34,12 @@ const Login = () => {
   const [documentPreview, setDocumentPreview] = useState(null);
 
   const adminUrl = import.meta.env.VITE_ADMIN_URL || "http://localhost:5174";
+
+  const clearAuthSessions = () => {
+    localStorage.removeItem("token")
+    localStorage.removeItem("aToken")
+    localStorage.removeItem("tToken")
+  }
 
   const onSubmitHandler = async (event) => {
     event.preventDefault();
@@ -90,6 +104,9 @@ const Login = () => {
         try {
           const adminData = await axios.post(backendUrl + '/api/admin/login', { email, password })
           if (adminData.data.success) {
+            clearAuthSessions()
+            localStorage.setItem("aToken", adminData.data.token)
+            setAToken(adminData.data.token)
             toast.success("Admin login successful!")
             window.location.href = `${adminUrl}/admin-dashboard?aToken=${adminData.data.token}`
             return
@@ -103,6 +120,7 @@ const Login = () => {
         try {
           const studentData = await axios.post(backendUrl + '/api/user/login', { email, password })
           if (studentData.data.success) {
+            clearAuthSessions()
             localStorage.setItem("token", studentData.data.token)
             setToken(studentData.data.token)
             toast.success("Student login successful!")
@@ -117,6 +135,9 @@ const Login = () => {
         try {
           const tutorData = await axios.post(backendUrl + '/api/tutor/login', { email, password })
           if (tutorData.data.success) {
+            clearAuthSessions()
+            localStorage.setItem("tToken", tutorData.data.token)
+            setTToken(tutorData.data.token)
             toast.success("Tutor login successful!")
             window.location.href = `${adminUrl}/tutor-dashboard?tToken=${tutorData.data.token}`
             return
@@ -359,16 +380,14 @@ const Login = () => {
                     className="w-full px-3 py-2 ring-1 ring-slate-900/10 bg-white mt-1 text-gray-800 rounded-md focus:ring-2 focus:ring-purple-500"
                   >
                     <option value="">Select Subject</option>
-                    <option value="Mathematics">Mathematics</option>
-                    <option value="Physics">Physics</option>
-                    <option value="Chemistry">Chemistry</option>
-                    <option value="Biology">Biology</option>
-                    <option value="English">English</option>
-                    <option value="Computer Science">Computer Science</option>
-                    <option value="History">History</option>
-                    <option value="Geography">Geography</option>
-                    <option value="Economics">Economics</option>
-                    <option value="Other">Other</option>
+                    <option value="AI">AI</option>
+                    <option value="Data Analysis">Data Analysis</option>
+                    <option value="UI-UX">UI-UX</option>
+                    <option value="Cybersecurity">Cybersecurity</option>
+                    <option value="Machine Learning">Machine Learning</option>
+                    <option value="Digital Marketing">Digital Marketing</option>
+                    <option value="Graphic Design">Graphic Design</option>
+                    <option value="Web Development">Web Development</option>
                   </select>
                 </div>
                 <div className="w-full">

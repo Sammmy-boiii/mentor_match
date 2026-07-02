@@ -7,28 +7,53 @@ export const AppContext = createContext();
 
 const AppContextProvider = (props) => {
   const navigate = useNavigate();
-  const [token, setToken] = useState(localStorage.getItem('token') ? localStorage.getItem('token') : "");
+  const [token, setTokenState] = useState(localStorage.getItem('token') ? localStorage.getItem('token') : "");
   const currency = "NPR";
   const backendUrl = import.meta.env.VITE_BACKEND_URL
   const [tutors, setTutors] = useState([])
   const [userData, setUserData] = useState(false)
 
+  const setToken = (value) => {
+    const nextToken = typeof value === 'function' ? value(token) : value;
+    setTokenState(nextToken || "");
+
+    if (nextToken) {
+      localStorage.setItem('token', nextToken);
+      localStorage.removeItem('aToken');
+      localStorage.removeItem('tToken');
+    } else {
+      localStorage.removeItem('token');
+    }
+  };
+
+  // Sort tutors: primary avgRating ↓, secondary ratingCount ↓, tertiary experience ↓
+  const sortTutors = (list) =>
+    [...list].sort((a, b) => {
+      // Primary: avgRating (higher = better)
+      const ratingDiff = (b.avgRating || 0) - (a.avgRating || 0);
+      if (ratingDiff !== 0) return ratingDiff;
+
+      // Secondary: ratingCount (more reviews = more reliable)
+      const countDiff = (b.ratingCount || 0) - (a.ratingCount || 0);
+      if (countDiff !== 0) return countDiff;
+
+      // Tertiary: experience — parse leading number (e.g. "5 years" → 5)
+      const expA = parseFloat(a.experience) || 0;
+      const expB = parseFloat(b.experience) || 0;
+      return expB - expA;
+    });
+
   const getTutorsData = async () => {
     try {
       const { data } = await axios.get(backendUrl + "/api/tutor/list")
       if (data.success) {
-        // console.log(data.tutors)
-        setTutors(data.tutors)
-      }
-      else {
+        setTutors(sortTutors(data.tutors))
+      } else {
         toast.error(data.message)
-
       }
-    }
-    catch (error) {
+    } catch (error) {
       console.log(error)
       toast.error(error.message)
-
     }
   }
 

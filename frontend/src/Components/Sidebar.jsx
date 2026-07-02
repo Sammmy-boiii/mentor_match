@@ -13,20 +13,18 @@ const Sidebar = () => {
   const { aToken, setAToken } = useContext(AdminContext);
   const { tToken, setTToken } = useContext(TutorContext);
 
-  const { navigate } = useContext(AppContext);
+  const { navigate, setToken } = useContext(AppContext);
 
   const frontendUrl = import.meta.env.VITE_FRONTEND_URL || "http://localhost:5173";
 
   const logout = () => {
     // Clear tokens
-    if (aToken) {
-      setAToken("");
-      localStorage.removeItem("aToken");
-    }
-    if (tToken) {
-      setTToken("");
-      localStorage.removeItem("tToken");
-    }
+    setAToken("");
+    setTToken("");
+    setToken("");
+    localStorage.removeItem("token");
+    localStorage.removeItem("aToken");
+    localStorage.removeItem("tToken");
     // Redirect to frontend login page
     window.location.href = `${frontendUrl}/login`;
   };

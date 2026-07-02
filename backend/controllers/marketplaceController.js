@@ -97,21 +97,37 @@ const getRankedBids = async (req, res) => {
         const question = await questionModel.findById(questionId);
         const bids = await bidModel.find({ questionId }).populate('mentorId');
 
+        const globalAvgResult = await tutorModel.aggregate([
+            { $match: { ratingCount: { $gt: 0 } } },
+            { $group: { _id: null, avgRating: { $avg: "$avgRating" } } }
+        ]);
+        const globalAvg = globalAvgResult[0]?.avgRating || 0;
+
+        const calculateWeightedRating = (tutorAvg, tutorCount, globalAvg, minVotes = 5) => {
+            const v = Number(tutorCount || 0);
+            const R = Number(tutorAvg || 0);
+            const m = Number(minVotes);
+            const C = Number(globalAvg || 0);
+
+            if (v === 0) return C;
+            return ((v / (v + m)) * R) + ((m / (v + m)) * C);
+        };
+
         const rankedBids = bids.map(bid => {
             const mentor = bid.mentorId;
-            const rating = 4.5; // Placeholder if not found in model
+            const rating = Number(mentor.avgRating || 0);
             const experience = parseInt(mentor.experience) || 1;
 
             // Response Time (Mocked for now)
             const responseTime = 0.8;
 
             // Price Match Algorithm
-            const priceMatch = 1 - (Math.abs(bid.proposedPrice - question.budget) / question.budget);
+            const priceMatch = question.budget > 0 ? 1 - (Math.abs(bid.proposedPrice - question.budget) / question.budget) : 1;
 
-            // Weighted Ranking Algorithm
-            const score = (0.4 * (rating / 5)) + (0.2 * (experience / 10)) + (0.2 * responseTime) + (0.2 * priceMatch);
+            const weightedRating = calculateWeightedRating(rating, mentor.ratingCount, globalAvg, 5);
+            const score = (0.4 * (weightedRating / 5)) + (0.2 * (experience / 10)) + (0.2 * responseTime) + (0.2 * priceMatch);
 
-            return { ...bid._doc, rankScore: score };
+            return { ...bid._doc, rankScore: score, weightedRating };
         });
 
         rankedBids.sort((a, b) => b.rankScore - a.rankScore);
@@ -181,7 +197,39 @@ const getMarketplaceQuestions = async (req, res) => {
     }
 };
 
-// 8. Accept Bid
+// 8. Get Top Rated Tutors
+const getTopRatedTutors = async (req, res) => {
+    try {
+        const globalAvgResult = await tutorModel.aggregate([
+            { $match: { ratingCount: { $gt: 0 } } },
+            { $group: { _id: null, avgRating: { $avg: "$avgRating" } } }
+        ]);
+        const globalAvg = globalAvgResult[0]?.avgRating || 0;
+
+        const tutors = await tutorModel.find({ available: true }).lean();
+        const calculateWeightedRating = (tutorAvg, tutorCount, globalAvg, minVotes = 5) => {
+            const v = Number(tutorCount || 0);
+            const R = Number(tutorAvg || 0);
+            const m = Number(minVotes);
+            const C = Number(globalAvg || 0);
+            if (v === 0) return C;
+            return ((v / (v + m)) * R) + ((m / (v + m)) * C);
+        };
+
+        const tutorsWithWeight = tutors.map(tutor => ({
+            ...tutor,
+            weightedRating: calculateWeightedRating(tutor.avgRating, tutor.ratingCount, globalAvg, 5)
+        }));
+
+        tutorsWithWeight.sort((a, b) => b.weightedRating - a.weightedRating);
+
+        res.json({ success: true, tutors: tutorsWithWeight });
+    } catch (error) {
+        res.json({ success: false, message: error.message });
+    }
+};
+
+// 9. Accept Bid
 const acceptBid = async (req, res) => {
     try {
         const userId = req.userId;
@@ -242,5 +290,6 @@ export {
     getPriceSuggestion,
     getMyQuestions,
     getMarketplaceQuestions,
+    getTopRatedTutors,
     acceptBid
 };

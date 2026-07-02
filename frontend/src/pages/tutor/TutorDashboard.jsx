@@ -1,6 +1,7 @@
 import React, { useContext, useEffect } from "react";
 import { TutorContext } from "../../context/TutorContext";
 import { AppContext } from "../../context/AppContext";
+import { useNavigate } from "react-router-dom";
 import earnings from "../../assets/earnings.png";
 import session from "../../assets/session.png";
 import client from "../../assets/client.png";
@@ -19,6 +20,7 @@ const TutorDashboard = () => {
   }, []);
   const { tToken, dashData, getDashData, completeSession, cancelSession } =
     useContext(TutorContext);
+  const navigate = useNavigate();
   const { currency, slotDateFormat } = useContext(AppContext);
 
   useEffect(() => {
@@ -109,6 +111,15 @@ const TutorDashboard = () => {
                     </span>
                   ) : (
                     <div className="flex gap-2">
+                      <button
+                        onClick={() => navigate(`/tutor-video-room/${item._id}`)}
+                        className="p-2 text-blue-500 hover:bg-blue-100 rounded-full transition-colors"
+                        title="Start Video Call"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                          <path d="M4 4a2 2 0 00-2 2v6a2 2 0 002 2h8a2 2 0 002-2V9l4 3V7l-4 3V6a2 2 0 00-2-2H4z" />
+                        </svg>
+                      </button>
                       <button
                         onClick={() => cancelSession(item._id)}
                         className="p-2 text-red-500 hover:bg-red-100 rounded-full transition-colors"

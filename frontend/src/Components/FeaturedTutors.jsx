@@ -59,8 +59,9 @@ const FeaturedTutors = () => {
               <div className="absolute inset-0 bg-black bg-opacity-50 flex flex-col justify-end p-4 opacity-0 group-hover:opacity-100 transition">
                 <div className="flex items-center justify-between mb-2">
                   <h5 className="text-white font-semibold text-lg">{tutor.name}</h5>
-                  <span className="flex items-center text-yellow-400">
-                    <FaStar className="mr-1" />4.8
+                  <span className="flex items-center text-yellow-400 text-sm gap-1">
+                    <FaStar className="mr-1" />
+                    {tutor.ratingCount > 0 ? `${tutor.avgRating.toFixed(1)} (${tutor.ratingCount})` : "No ratings yet"}
                   </span>
                 </div>
                 <p className="text-sm text-gray-200 mb-2">{tutor.subject}</p>

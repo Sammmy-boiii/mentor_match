@@ -9,6 +9,7 @@ const Navbar = ({ containerStyles, toggleMenu, menuOpened }) => {
     { to: "/tutors", label: "Tutors" },
     { to: "/blog", label: "Blog" },
     { to: "/contact", label: "Contact" },
+    { to: "/my-sessions", label: "My Sessions" },
     { to: "/my-question-bids", label: "My Bids" },
   ];
 

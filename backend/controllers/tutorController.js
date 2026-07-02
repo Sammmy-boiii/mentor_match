@@ -25,16 +25,20 @@ const applyTutor = async (req, res) => {
             return res.json({ success: false, message: "Document/Certificate is required" })
         }
 
-        // Check if email already exists in applications
-        const existingApplication = await tutorLoginModel.findOne({ email })
-        if (existingApplication) {
-            return res.json({ success: false, message: "An application with this email already exists" })
-        }
-
-        // Check if email already exists as approved tutor
+        // Check if email already exists as an active tutor
         const existingTutor = await tutorModel.findOne({ email })
         if (existingTutor) {
             return res.json({ success: false, message: "This email is already registered as a tutor. Please use tutor login." })
+        }
+
+        // Allow re-application if the previous record was rejected or the tutor was deleted
+        const existingApplication = await tutorLoginModel.findOne({ email })
+        if (existingApplication) {
+            if (existingApplication.status === "pending") {
+                return res.json({ success: false, message: "An application with this email already exists" })
+            }
+
+            await tutorLoginModel.findByIdAndDelete(existingApplication._id)
         }
 
         // Upload image to cloudinary
@@ -85,7 +89,12 @@ const changeAvailability = async (req, res) => {
 
 const tutorsList = async (req, res) => {
     try {
-        const tutors = await tutorModel.find()
+        // Primary: avgRating desc, Secondary: ratingCount desc
+        // Tertiary (experience) is a free-text string, handled on the frontend
+        const tutors = await tutorModel
+            .find()
+            .sort({ avgRating: -1, ratingCount: -1 })
+            .select("-password")
         res.json({ success: true, tutors })
     } catch (error) {
         console.log(error)

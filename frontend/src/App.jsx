@@ -55,7 +55,7 @@ export default function App() {
             <Route path='/my-profile' element={<Myprofile />} />
             <Route path='/session/:tutId' element={<Session />} />
             <Route path='/my-sessions' element={<MySessions />} />
-            <Route path='/verify/:sessionId/:status' element={<Verify />} />
+            <Route path='/verify/:sessionId' element={<Verify />} />
             <Route path='/login' element={<Login />} />
             <Route path='/video-room/:sessionId' element={<VideoRoom />} />
             <Route path='/my-question-bids' element={<MyQuestionBids />} />

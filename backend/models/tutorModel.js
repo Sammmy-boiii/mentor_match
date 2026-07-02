@@ -17,6 +17,8 @@ const tutorSchema = new mongoose.Schema({
       country: { type: String, default: "N/A" },
     },
     date:{ type: Number, required:true},
+    avgRating: { type: Number, default: 0 },
+    ratingCount: { type: Number, default: 0 },
     slots_booked:{ type: Object, default: {}},
 },{minimize: false})
 

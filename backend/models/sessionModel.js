@@ -23,6 +23,9 @@ const sessionSchema = new mongoose.Schema({
   callEndedAt: {type:Date},
   callDuration: {type:Number, default:0}, // in seconds
   callStatus: {type:String, enum:['not-started', 'waiting', 'in-progress', 'ended'], default:'not-started'},
+  // Review Fields
+  rating: {type:Number, min:1, max:5},
+  comment: {type:String, default:""},
 })
 
 // Generate unique room ID when payment is completed

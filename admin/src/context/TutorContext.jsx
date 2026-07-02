@@ -6,12 +6,25 @@ import { AppContext } from "./AppContext"
 export const TutorContext = createContext();
 
 const TutorContextProvider = (props) => {
-  const [tToken, setTToken] = useState(localStorage.getItem('tToken') ? localStorage.getItem('tToken') : "")
+  const [tToken, setTTokenState] = useState(localStorage.getItem('tToken') ? localStorage.getItem('tToken') : "")
   const [dashData, setDashData] = useState(null)
   const [sessions, setSessions] = useState([])
   const [profileData, setProfileData] = useState(null)
 
   const { backendUrl } = useContext(AppContext)
+
+  const setTToken = (value) => {
+    const nextValue = typeof value === 'function' ? value(tToken) : value;
+    setTTokenState(nextValue || "");
+
+    if (nextValue) {
+      localStorage.setItem('tToken', nextValue);
+      localStorage.removeItem('token');
+      localStorage.removeItem('aToken');
+    } else {
+      localStorage.removeItem('tToken');
+    }
+  };
 
   // Get tutor dashboard data
   const getDashData = async () => {

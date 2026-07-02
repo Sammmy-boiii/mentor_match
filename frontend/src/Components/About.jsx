@@ -1,8 +1,10 @@
 import React from 'react'
+import { useNavigate } from 'react-router-dom'
 import about1 from "../assets/about1.png"
 import { FaArrowRight,FaChalkboardTeacher,FaClock,FaUser } from 'react-icons/fa'
 import playButton from "../assets/playButton.png"
 const About = () => {
+  const navigate = useNavigate()
   return (
     <section className='max-padd-container px-6 lg:px-12 py-16 xl:py-20'>
       <div className='max-w-lg mx-auto text-center pb-16'>
@@ -25,8 +27,10 @@ const About = () => {
           </div>
           <div className='flexBetween gap-10'>
             <h4 className='medium-16'>Become a mentor on our platform</h4>
-            <button className='btn-light
-            text-tertiary'>
+            <button
+              className='btn-light text-tertiary'
+              onClick={() => navigate('/login', { state: { tab: 'Apply Tutor' } })}
+            >
               <FaArrowRight className='text-xl mb-2 bg-white rounded-full h-10 w-10 p-2.5'/>
             </button>
           </div>

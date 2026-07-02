@@ -13,7 +13,7 @@ const AddTutor = () => {
   const[email,setEmail]=useState("")
   const[password,setPassword]=useState("")
   const[experience,setExperience]=useState("1 year")
-  const[subject,setSubject]=useState("Science")
+  const[subject,setSubject]=useState("AI")
   const[fees,setFees]=useState("")
   const[about,setAbout]=useState("")
   const[qualification,setQualification]=useState("")
@@ -59,7 +59,7 @@ const AddTutor = () => {
         setExperience("1 Year")
         setFees("")
         setAbout("")
-        setSubject("Science")
+        setSubject("AI")
         setQualification("")
         setCity("")
         setCountry("")
@@ -149,11 +149,12 @@ const AddTutor = () => {
              bg-tertiary/5 mt-1 sm:w-full '>
               <option value="AI">AI</option>
               <option value="Data Analysis">Data Analysis</option>
+              <option value="UI-UX">UI-UX</option>
               <option value="Cybersecurity">Cybersecurity</option>
-              <option value="UI/UX">UI/UX</option>
-              <option value="Digital Marketing">Digital Marketing</option>
               <option value="Machine Learning">Machine Learning</option>
-              
+              <option value="Digital Marketing">Digital Marketing</option>
+              <option value="Graphic Design">Graphic Design</option>
+              <option value="Web Development">Web Development</option>
              </select>
             </div>
             {/* {Experience} */}

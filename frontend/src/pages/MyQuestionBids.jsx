@@ -99,7 +99,9 @@ const MyQuestionBids = () => {
                                     <div className="relative">
                                         <img src={bid.mentorId.image} alt={bid.mentorId.name} className="w-24 h-24 rounded-3xl object-cover shadow-lg border-2 border-white ring-4 ring-slate-50" />
                                         <div className="absolute -bottom-2 -right-2 bg-white px-2 py-1 rounded-lg shadow-md border border-slate-100">
-                                            <span className="text-[10px] font-black text-slate-800">⭐ {bid.mentorId.rating || "4.8"}</span>
+                                            <span className="text-[10px] font-black text-slate-800">
+                                                ⭐ {bid.mentorId?.ratingCount > 0 ? bid.mentorId.avgRating.toFixed(1) : "No ratings yet"}
+                                            </span>
                                         </div>
                                     </div>
                                     <div>
